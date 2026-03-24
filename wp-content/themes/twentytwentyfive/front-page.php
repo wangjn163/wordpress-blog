@@ -1,0 +1,271 @@
+<?php
+/**
+ * Front Page Template - 美化版
+ */
+
+get_header();
+?>
+
+<style>
+    /* 整体容器 */
+    .site-content {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 30px 20px;
+    }
+
+    /* 文章列表 */
+    .article-list {
+        margin-bottom: 40px;
+    }
+
+    .post-item {
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 25px;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    .post-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        border-color: #0073aa;
+    }
+
+    /* 文章标题 */
+    .post-title {
+        font-size: 26px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        line-height: 1.4;
+    }
+
+    .post-title a {
+        color: #2c3e50;
+        text-decoration: none;
+        transition: color 0.3s ease;
+    }
+
+    .post-title a:hover {
+        color: #0073aa;
+    }
+
+    /* 文章元信息 */
+    .post-meta {
+        color: #7f8c8d;
+        font-size: 14px;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .post-meta-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    /* 文章摘要 */
+    .post-excerpt {
+        color: #555;
+        line-height: 1.8;
+        font-size: 16px;
+        margin-bottom: 18px;
+    }
+
+    /* 阅读更多按钮 */
+    .read-more-btn {
+        display: inline-flex;
+        align-items: center;
+        padding: 12px 28px;
+        background: linear-gradient(135deg, #0073aa 0%, #005177 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: 25px;
+        font-weight: 500;
+        font-size: 15px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0,115,170,0.3);
+    }
+
+    .read-more-btn:hover {
+        background: linear-gradient(135deg, #005177 0%, #0073aa 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,115,170,0.4);
+    }
+
+    /* 美化分页导航 */
+    .pagination-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 50px;
+        padding: 20px 0;
+    }
+
+    .pagination {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .pagination a,
+    .pagination span {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 45px;
+        height: 45px;
+        padding: 0 18px;
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        text-decoration: none;
+        color: #555;
+        font-weight: 500;
+        font-size: 15px;
+        transition: all 0.3s ease;
+        background: white;
+    }
+
+    .pagination a:hover {
+        background: #0073aa;
+        color: white;
+        border-color: #0073aa;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,115,170,0.3);
+    }
+
+    .pagination .current {
+        background: linear-gradient(135deg, #0073aa 0%, #005177 100%);
+        color: white;
+        border-color: #0073aa;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(0,115,170,0.3);
+    }
+
+    .pagination .dots {
+        background: transparent;
+        border: none;
+        color: #999;
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+        .site-content {
+            padding: 20px 15px;
+        }
+
+        .post-item {
+            padding: 20px;
+        }
+
+        .post-title {
+            font-size: 22px;
+        }
+
+        .pagination a,
+        .pagination span {
+            min-width: 40px;
+            height: 40px;
+            padding: 0 15px;
+            font-size: 14px;
+        }
+    }
+
+    /* 没有文章时的提示 */
+    .no-posts {
+        text-align: center;
+        padding: 60px 20px;
+        color: #7f8c8d;
+        font-size: 18px;
+    }
+</style>
+
+<div class="site-content">
+    <?php
+    $paged = get_query_var('paged') ? get_query_var('paged') : 1;
+
+    $args = array(
+        'post_type' => 'post',
+        'post_status' => 'publish',
+        'paged' => $paged
+    );
+
+    global $wp_query;
+    $wp_query = new WP_Query($args);
+
+    if (have_posts()) :
+        echo '<div class="article-list">';
+
+        while (have_posts()) : the_post();
+            ?>
+            <article class="post-item">
+                <h2 class="post-title">
+                    <a href="<?php the_permalink(); ?>">
+                        <?php the_title(); ?>
+                    </a>
+                </h2>
+
+                <div class="post-meta">
+                    <span class="post-meta-item">
+                        📅 <?php echo get_the_date('Y年m月d日'); ?>
+                    </span>
+                    <?php if (get_comments_number() > 0) : ?>
+                    <span class="post-meta-item">
+                        💬 <?php comments_number('0 评论', '1 评论', '% 评论'); ?>
+                    </span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="post-excerpt">
+                    <?php echo wp_trim_words(get_the_excerpt(), 60, '...'); ?>
+                </div>
+
+                <a href="<?php the_permalink(); ?>" class="read-more-btn">
+                    阅读更多 →
+                </a>
+            </article>
+            <?php
+        endwhile;
+
+        echo '</div>';
+
+        // 美化的分页导航
+        $big = 999999999;
+        $pagination = paginate_links(array(
+            'base' => str_replace($big, '%#%', esc_url(get_pagenum_link($big))),
+            'format' => '/page/%#%',
+            'current' => max(1, get_query_var('paged')),
+            'total' => $wp_query->max_num_pages,
+            'prev_text' => '←',
+            'next_text' => '→',
+            'type' => 'plain',
+            'before_page_number' => '',
+            'after_page_number' => ''
+        ));
+
+        if ($pagination) :
+            echo '<div class="pagination-wrapper">';
+            echo '<div class="pagination">' . $pagination . '</div>';
+            echo '</div>';
+        endif;
+
+        wp_reset_query();
+
+    else :
+        ?>
+        <div class="no-posts">
+            <p>📭 暂时没有文章哦</p>
+        </div>
+    <?php
+    endif;
+    ?>
+</div>
+
+<?php
+get_footer();
+?>
