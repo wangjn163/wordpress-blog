@@ -1,10 +1,11 @@
-# 环境变量(包含敏感信息)
-.env
-
 # 数据库数据
 db-data/
 
-# WordPress 核心(使用 Docker 镜像,不需要版本控制)
+# 环境变量(包含敏感信息)
+.env
+
+# WordPress 核心(使用 Docker 镜像)
+# wp-content 除外
 
 # 日志文件
 *.log
