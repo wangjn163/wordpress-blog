@@ -1,0 +1,60 @@
+name: Deploy WordPress to Server
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wp-content/plugins/**'
+      - 'wp-content/themes/**'
+      - '.github/workflows/**'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script_stop: true
+          script: |
+            echo "🚀 开始部署 WordPress..."
+            
+            # 进入项目目录
+            cd /opt/projects/blog/wordpress
+            
+            # 拉取最新代码
+            echo "📥 拉取最新代码..."
+            git pull origin main
+            
+            # 设置正确的文件权限
+            echo "🔐 设置文件权限..."
+            sudo chown -R www-data:www-data wp-content
+            sudo find wp-content -type d -exec chmod 755 {} \;
+            sudo find wp-content -type f -exec chmod 644 {} \;
+            
+            # 清理 WordPress 缓存
+            echo "🧹 清理缓存..."
+            docker exec wordpress wp cache flush 2>/dev/null || echo "缓存清理失败(可能没有缓存插件)"
+            
+            # 重启 WordPress 容器(可选)
+            # docker compose restart wordpress
+            
+            echo "✅ 部署完成!"
+            echo ""
+            echo "📊 部署信息:"
+            echo "  分支: ${{ github.ref_name }}"
+            echo "  提交: ${{ github.sha }}"
+            echo "  作者: ${{ github.actor }}"
+            echo "  时间: $(date)"
+            
+            # 显示最新日志
+            echo ""
+            echo "📋 最新提交:"
+            git log -1 --oneline
