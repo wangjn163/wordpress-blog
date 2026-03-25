@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>与 OpenClaw 助手的对话</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #app {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header .status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .status-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .date-selector {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .date-selector select {
+            background: rgba(255, 255, 255, 0.3);
+            border: none;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .date-selector select option {
+            background: #764ba2;
+            color: white;
+        }
+
+        .per-page-selector {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .per-page-selector select {
+            background: rgba(255, 255, 255, 0.3);
+            border: none;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .per-page-selector select option {
+            background: #764ba2;
+            color: white;
+        }
+
+        .refresh-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 6px 12px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.disconnected {
+            background: #ef4444;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .chat-container {
+            height: 500px;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin: 0 10px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            color: white;
+        }
+
+        .message.user .avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            order: 2;
+        }
+
+        .message.assistant .avatar {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: 15px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .message.user .bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant .bubble {
+            background: white;
+            color: #333;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 4px;
+        }
+
+        .bubble-content {
+            white-space: pre-wrap;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+            text-align: right;
+        }
+
+        .message.assistant .timestamp {
+            text-align: left;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            margin: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .pagination button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: transform 0.2s;
+        }
+
+        .pagination button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            transform: scale(1.05);
+        }
+
+        .pagination input[type="number"] {
+            width: 60px;
+            padding: 6px 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .pagination input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .pagination .go-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-left: 5px;
+            transition: transform 0.2s;
+        }
+
+        .pagination .go-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .footer {
+            padding: 15px 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .chat-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+
+        .chat-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                border-radius: 0;
+            }
+
+            .bubble {
+                max-width: 80%;
+            }
+
+            .header .status {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <div class="header">
+                <h1>💬 与 OpenClaw 助手的对话</h1>
+                <div class="status">
+                    <div class="status-left">
+                        <span class="status-dot" :class="{ disconnected: !isConnected }"></span>
+                        <span>{{ isConnected ? '实时连接中' : '连接断开' }}</span>
+                        <span style="margin-left: 10px;">👤 {{ username }}</span>
+                        
+                        <div class="date-selector" v-if="availableDates.length > 0">
+                            <span>📅</span>
+                            <select v-model="selectedDate" @change="changeDate">
+                                <option v-for="date in availableDates" :key="date" :value="date">
+                                    {{ formatDateDisplay(date) }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="per-page-selector">
+                            <span>📄</span>
+                            <select v-model="perPage" @change="changePerPage">
+                                <option :value="10">10条/页</option>
+                                <option :value="20">20条/页</option>
+                                <option :value="30">30条/页</option>
+                                <option :value="50">50条/页</option>
+                                <option :value="100">100条/页</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="status-right">
+                        <button class="refresh-btn" @click="fetchConversations(true)">🔄 刷新</button>
+                        <button class="logout-btn" @click="logout">🚪 登出</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-container" ref="chatContainer">
+                <div v-if="loading" class="loading">
+                    加载中...
+                </div>
+
+                <div v-else-if="error" class="error">
+                    {{ error }}
+                </div>
+
+                <div v-else>
+                    <div
+                        v-for="(msg, index) in conversations"
+                        :key="msg.id"
+                        class="message"
+                        :class="msg.role"
+                    >
+                        <div class="avatar">{{ msg.role === 'user' ? '王' : 'AI' }}</div>
+                        <div class="bubble">
+                            <div class="bubble-content" v-html="formatMessage(msg.message)"></div>
+                            <div class="timestamp">{{ msg.timestamp }}</div>
+                        </div>
+                    </div>
+
+                    <div v-if="conversations.length === 0" class="loading">
+                        {{ selectedDate === today ? '暂无今日对话' : '该日期暂无对话记录' }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="pagination" v-if="totalPages > 1">
+                <button @click="prevPage" :disabled="currentPage <= 1">← 上一页</button>
+                <span>第 {{ currentPage }} / {{ totalPages }} 页 (共 {{ totalMessages }} 条, 每页 {{ perPage }} 条)</span>
+                <button @click="nextPage" :disabled="currentPage >= totalPages">下一页 →</button>
+                
+                <div style="display: inline-block; margin-left: 15px; align-items: center; gap: 5px;">
+                    <span style="color: #666;">跳转到:</span>
+                    <input 
+                        type="number" 
+                        v-model.number="jumpPage" 
+                        :min="1" 
+                        :max="totalPages" 
+                        @keyup.enter="goToPage"
+                        placeholder="页码"
+                        style="width: 70px;"
+                    >
+                    <button @click="goToPage" class="go-btn">GO</button>
+                </div>
+            </div>
+
+            <div class="footer">
+                Powered by <a href="https://github.com/openclaw/openclaw" target="_blank">OpenClaw</a> • Built with Vue 3 & PostgreSQL ❤️
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    conversations: [],
+                    loading: true,
+                    error: null,
+                    isConnected: true,
+                    username: '',
+                    availableDates: [],
+                    selectedDate: '',
+                    today: '',
+                    currentPage: 1,
+                    totalPages: 1,
+                    totalMessages: 0,
+                    perPage: 10,  // 默认每页10条
+                    jumpPage: 1,  // 跳转页码
+                    pollingInterval: null
+                }
+            },
+            methods: {
+                async checkAuth() {
+                    try {
+                        const response = await fetch('/api/check-auth');
+                        if (!response.ok) {
+                            window.location.href = '/login';
+                            return false;
+                        }
+                        const data = await response.json();
+                        this.username = data.username;
+                        return true;
+                    } catch (err) {
+                        window.location.href = '/login';
+                        return false;
+                    }
+                },
+
+                async logout() {
+                    try {
+                        await fetch('/api/logout', { method: 'POST' });
+                        window.location.href = '/login';
+                    } catch (err) {
+                        console.error('登出失败:', err);
+                    }
+                },
+
+                async fetchConversations(scrollToBottom = false) {
+                    this.loading = true;
+                    try {
+                        const response = await fetch(`/api/conversations?date=${this.selectedDate}&page=${this.currentPage}&per_page=${this.perPage}`);
+                        if (!response.ok) {
+                            if (response.status === 401) {
+                                window.location.href = '/login';
+                                return;
+                            }
+                            throw new Error('获取对话失败');
+                        }
+
+                        const data = await response.json();
+                        this.conversations = data.conversations || [];
+                        this.availableDates = data.available_dates || [];
+                        this.totalPages = data.pages || 1;
+                        this.totalMessages = data.total || 0;
+                        this.error = null;
+                        this.isConnected = true;
+
+                        // 如果selectedDate不在列表中，设置为第一个
+                        if (this.availableDates.length > 0 && !this.selectedDate) {
+                            this.selectedDate = this.availableDates[0];
+                        }
+
+                        // 智能滚动：今天或手动刷新时滚动到底部，翻页时滚动到顶部
+                        this.$nextTick(() => {
+                            const container = this.$refs.chatContainer;
+                            if (container) {
+                                if (scrollToBottom || this.selectedDate === this.today) {
+                                    container.scrollTop = container.scrollHeight;
+                                } else {
+                                    container.scrollTop = 0;
+                                }
+                            }
+                        });
+                    } catch (err) {
+                        console.error('获取对话失败:', err);
+                        this.error = '无法连接到服务器';
+                        this.isConnected = false;
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                changeDate() {
+                    this.currentPage = 1;
+                    // 切换日期时，如果是今天则滚动到底部
+                    const shouldScrollToBottom = (this.selectedDate === this.today);
+                    this.fetchConversations(shouldScrollToBottom);
+                },
+
+                prevPage() {
+                    if (this.currentPage > 1) {
+                        this.currentPage--;
+                        this.fetchConversations(false); // 翻页时不滚动到底部
+                    }
+                },
+
+                nextPage() {
+                    if (this.currentPage < this.totalPages) {
+                        this.currentPage++;
+                        this.fetchConversations(false); // 翻页时不滚动到底部
+                    }
+                },
+
+                changePerPage() {
+                    this.currentPage = 1; // 重置到第一页
+                    this.jumpPage = 1; // 重置跳转页码
+                    this.fetchConversations(this.selectedDate === this.today);
+                },
+
+                goToPage() {
+                    if (this.jumpPage >= 1 && this.jumpPage <= this.totalPages) {
+                        this.currentPage = this.jumpPage;
+                        this.fetchConversations(false); // 跳转时滚动到顶部
+                    }
+                },
+
+                formatMessage(message) {
+                    return message
+                        .replace(/\n/g, '<br>')
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\*(.*?)\*/g, '<em>$1</em>');
+                },
+
+                formatDateDisplay(dateStr) {
+                    const date = new Date(dateStr);
+                    const today = new Date();
+                    const yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+
+                    if (dateStr === this.today) {
+                        return '今天';
+                    } else if (dateStr === yesterday.toISOString().split('T')[0]) {
+                        return '昨天';
+                    } else {
+                        return dateStr;
+                    }
+                },
+
+                startPolling() {
+                    // 已禁用自动刷新，使用手动刷新按钮
+                    // this.pollingInterval = setInterval(() => {
+                    //     if (this.selectedDate === this.today) {
+                    //         this.fetchConversations();
+                    //     }
+                    // }, 3000);
+                },
+
+                stopPolling() {
+                    if (this.pollingInterval) {
+                        clearInterval(this.pollingInterval);
+                        this.pollingInterval = null;
+                    }
+                }
+            },
+
+            async mounted() {
+                // 设置今天的日期
+                this.today = new Date().toISOString().split('T')[0];
+                this.selectedDate = this.today;
+
+                const authOk = await this.checkAuth();
+                if (authOk) {
+                    await this.fetchConversations();
+                    // 自动刷新已禁用
+                    // this.startPolling();
+                }
+            },
+
+            beforeUnmount() {
+                this.stopPolling();
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

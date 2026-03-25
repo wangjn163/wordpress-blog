@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作计划 - 工作台</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f4ff',
+                            100: '#e0e7ff',
+                            200: '#c7d2fe',
+                            300: '#a5b4fc',
+                            400: '#818cf8',
+                            500: '#667eea',
+                            600: '#5b6bd6',
+                            700: '#4c51bf',
+                            800: '#4338ca',
+                            900: '#3730a3',
+                        }
+                    }
+                }
+            }
+        </script>
+</head>
+<body class="bg-gray-50">
+    <div id="app" class="min-h-screen flex">
+        <!-- 侧边栏 -->
+        <aside class="w-64 bg-gradient-to-b from-primary-500 to-primary-700 text-white flex flex-col flex-shrink-0">
+            <!-- Header -->
+            <div class="p-6 border-b border-white/20">
+                <h2 class="text-xl font-bold mb-2">📋 工作台</h2>
+                <div class="text-sm opacity-90">👤 {{ username }}</div>
+            </div>
+            
+            <!-- Navigation -->
+            <nav class="flex-1 p-4 space-y-2">
+                <a 
+                    href="/chat" 
+                    class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                    <span>💬</span>
+                    <span>对话记录</span>
+                </a>
+                <div class="flex items-center gap-3 px-4 py-3 rounded-lg bg-white/20 font-semibold">
+                    <span>📋</span>
+                    <span>工作计划</span>
+                </div>
+            </nav>
+
+            <!-- Logout -->
+            <div class="p-4 border-t border-white/20">
+                <button 
+                    @click="logout" 
+                    class="w-full px-4 py-3 bg-white/10 hover:bg-white/20 border border-white/30 rounded-lg text-sm transition-colors"
+                >
+                    🚪 登出
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-8 overflow-y-auto">
+            <!-- Page Header -->
+            <div class="mb-8">
+                <h1 class="text-3xl font-bold text-gray-900 mb-4">📋 工作计划</h1>
+                
+                <!-- Date Selector -->
+                <div class="inline-flex items-center gap-3 px-6 py-4 bg-white rounded-xl shadow-sm">
+                    <label class="text-gray-700 font-medium">选择日期：</label>
+                    <input 
+                        type="date" 
+                        v-model="selectedDate" 
+                        @change="loadWorkPlan"
+                        :max="today"
+                        class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none transition-colors"
+                    >
+                    <button 
+                        @click="goToToday"
+                        class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-lg hover:shadow-lg transition-all font-medium"
+                    >
+                        回到今天
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div v-if="loading" class="text-center py-20 text-gray-500">
+                加载中...
+            </div>
+
+            <!-- Form Content -->
+            <div v-else class="max-w-4xl space-y-6">
+                <!-- Success Message -->
+                <div 
+                    v-if="showSuccess" 
+                    class="px-6 py-4 bg-green-50 text-green-700 rounded-xl flex items-center gap-3 mb-6"
+                >
+                    <span class="text-2xl">✅</span>
+                    <span>{{ successMessage }}</span>
+                </div>
+
+                <!-- Week Goals -->
+                <div class="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <span>🎯</span>
+                        <span>本周目标</span>
+                    </h3>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-gray-700">目标内容</label>
+                        <textarea 
+                            v-model="workPlan.week_goals"
+                            placeholder="输入本周的目标和计划..."
+                            @input="hasChanges = true"
+                            class="w-full min-h-[120px] px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none resize-y transition-colors"
+                        ></textarea>
+                    </div>
+                </div>
+
+                <!-- Yesterday Work -->
+                <div class="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <span>📝</span>
+                        <span>昨日工作</span>
+                    </h3>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-gray-700">工作内容</label>
+                        <textarea 
+                            v-model="workPlan.yesterday_work"
+                            placeholder="记录昨天完成的工作..."
+                            @input="hasChanges = true"
+                            class="w-full min-h-[120px] px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none resize-y transition-colors"
+                        ></textarea>
+                    </div>
+                </div>
+
+                <!-- Today Plan -->
+                <div class="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <span>✅</span>
+                        <span>今日计划</span>
+                    </h3>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-gray-700">任务清单</label>
+                        <textarea 
+                            v-model="workPlan.today_plan"
+                            placeholder="规划今天要完成的任务..."
+                            @input="hasChanges = true"
+                            class="w-full min-h-[120px] px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none resize-y transition-colors"
+                        ></textarea>
+                    </div>
+                </div>
+
+                <!-- Save Button -->
+                <div class="flex justify-end">
+                    <button 
+                        @click="saveWorkPlan"
+                        :disabled="saving"
+                        class="px-8 py-3 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-xl font-semibold hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                        <span v-if="saving">保存中...</span>
+                        <span v-else>💾 保存计划</span>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    username: '',
+                    selectedDate: '',
+                    today: '',
+                    workPlan: {
+                        week_goals: '',
+                        yesterday_work: '',
+                        today_plan: ''
+                    },
+                    loading: true,
+                    saving: false,
+                    hasChanges: false,
+                    showSuccess: false,
+                    successMessage: ''
+                }
+            },
+            methods: {
+                async checkAuth() {
+                    try {
+                        const response = await fetch('/api/check-auth');
+                        if (!response.ok) {
+                            window.location.href = '/login';
+                            return false;
+                        }
+                        const data = await response.json();
+                        this.username = data.username;
+                        return true;
+                    } catch (err) {
+                        window.location.href = '/login';
+                        return false;
+                    }
+                },
+
+                async logout() {
+                    try {
+                        await fetch('/api/logout', { method: 'POST' });
+                        window.location.href = '/login';
+                    } catch (err) {
+                        console.error('登出失败:', err);
+                    }
+                },
+
+                async loadWorkPlan() {
+                    this.loading = true;
+                    try {
+                        const response = await fetch(`/api/workplan?date=${this.selectedDate}`);
+                        if (!response.ok) throw new Error('获取工作计划失败');
+                        
+                        const data = await response.json();
+                        this.workPlan = {
+                            week_goals: data.week_goals || '',
+                            yesterday_work: data.yesterday_work || '',
+                            today_plan: data.today_plan || ''
+                        };
+                        this.hasChanges = false;
+                    } catch (err) {
+                        console.error('加载失败:', err);
+                        alert('加载工作计划失败，请重试');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                async saveWorkPlan() {
+                    this.saving = true;
+                    try {
+                        const response = await fetch('/api/workplan', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                date: this.selectedDate,
+                                week_goals: this.workPlan.week_goals,
+                                yesterday_work: this.workPlan.yesterday_work,
+                                today_plan: this.workPlan.today_plan
+                            })
+                        });
+
+                        const data = await response.json();
+                        if (data.success) {
+                            this.hasChanges = false;
+                            this.showSuccessMessage('保存成功！');
+                        }
+                    } catch (err) {
+                        console.error('保存失败:', err);
+                        alert('保存失败，请重试');
+                    } finally {
+                        this.saving = false;
+                    }
+                },
+
+                showSuccessMessage(msg) {
+                    this.successMessage = msg;
+                    this.showSuccess = true;
+                    setTimeout(() => {
+                        this.showSuccess = false;
+                    }, 3000);
+                },
+
+                goToToday() {
+                    this.selectedDate = this.today;
+                    this.loadWorkPlan();
+                }
+            },
+
+            async mounted() {
+                const authOk = await this.checkAuth();
+                if (authOk) {
+                    this.today = new Date().toISOString().split('T')[0];
+                    this.selectedDate = this.today;
+                    await this.loadWorkPlan();
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

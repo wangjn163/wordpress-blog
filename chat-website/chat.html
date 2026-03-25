@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>对话记录 - 工作台</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f4ff',
+                            100: '#e0e7ff',
+                            200: '#c7d2fe',
+                            300: '#a5b4fc',
+                            400: '#818cf8',
+                            500: '#667eea',
+                            600: '#5b6bd6',
+                            700: '#4c51bf',
+                            800: '#4338ca',
+                            900: '#3730a3',
+                        }
+                    }
+                }
+            }
+        </script>
+</head>
+<body class="bg-gray-50">
+    <div id="app" class="min-h-screen flex">
+        <!-- 侧边栏 -->
+        <aside class="w-64 bg-gradient-to-b from-primary-500 to-primary-700 text-white flex flex-col flex-shrink-0">
+            <!-- Header -->
+            <div class="p-6 border-b border-white/20">
+                <h2 class="text-xl font-bold mb-2">📋 工作台</h2>
+                <div class="text-sm opacity-90">👤 {{ username }}</div>
+            </div>
+            
+            <!-- Navigation -->
+            <nav class="flex-1 p-4 space-y-2">
+                <div class="flex items-center gap-3 px-4 py-3 rounded-lg bg-white/20 font-semibold">
+                    <span>💬</span>
+                    <span>对话记录</span>
+                </div>
+                <a 
+                    href="/workplan" 
+                    class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                    <span>📋</span>
+                    <span>工作计划</span>
+                </a>
+            </nav>
+
+            <!-- Logout -->
+            <div class="p-4 border-t border-white/20">
+                <button 
+                    @click="logout" 
+                    class="w-full px-4 py-3 bg-white/10 hover:bg-white/20 border border-white/30 rounded-lg text-sm transition-colors"
+                >
+                    🚪 登出
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-8 overflow-y-auto">
+            <!-- Page Header -->
+            <div class="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-100">
+                <h1 class="text-2xl font-bold text-gray-900 mb-4">💬 对话记录</h1>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full" :class="isConnected ? 'bg-green-400' : 'bg-red-400'"></span>
+                        <span class="text-sm text-gray-600">{{ isConnected ? '实时连接中' : '连接断开' }}</span>
+                    </div>
+
+                    <!-- Date Selector -->
+                    <div v-if="availableDates.length > 0" class="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-lg">
+                        <span>📅</span>
+                        <select 
+                            v-model="selectedDate" 
+                            @change="changeDate"
+                            class="bg-white/20 border-0 text-white rounded-lg px-3 py-1.5 text-sm cursor-pointer"
+                        >
+                            <option v-for="date in availableDates" :key="date" :value="date" class="text-gray-900">
+                                {{ formatDateDisplay(date) }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Per Page Selector -->
+                    <div class="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-lg">
+                        <span>📄</span>
+                        <select 
+                            v-model="perPage" 
+                            @change="changePerPage"
+                            class="bg-white/20 border-0 text-white rounded-lg px-3 py-1.5 text-sm cursor-pointer"
+                        >
+                            <option :value="10" class="text-gray-900">10条/页</option>
+                            <option :value="20" class="text-gray-900">20条/页</option>
+                            <option :value="30" class="text-gray-900">30条/页</option>
+                            <option :value="50" class="text-gray-900">50条/页</option>
+                            <option :value="100" class="text-gray-900">100条/页</option>
+                        </select>
+                    </div>
+
+                    <!-- Refresh Button -->
+                    <button 
+                        @click="fetchConversations(true)"
+                        class="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/30 rounded-lg text-sm transition-colors"
+                    >
+                        🔄 刷新
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chat Container -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6 min-h-[400px] max-h-[500px] overflow-y-auto" ref="chatContainer">
+                <div v-if="loading" class="text-center py-20 text-gray-500">加载中...</div>
+                <div v-else-if="error" class="text-center py-20 text-red-500">{{ error }}</div>
+                <div v-else class="space-y-6">
+                    <div v-for="(msg, index) in conversations" :key="msg.id" class="flex gap-3" :class="msg.role === 'user' ? 'flex-row-reverse' : ''">
+                        <div class="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm text-white flex-shrink-0" 
+                             :class="msg.role === 'user' ? 'bg-gradient-to-br from-primary-500 to-primary-700' : 'bg-gradient-to-br from-pink-400 to-red-500'">
+                            {{ msg.role === 'user' ? '王' : 'AI' }}
+                        </div>
+                        <div class="max-w-[70%]" :class="msg.role === 'user' ? 'flex flex-col items-end' : ''">
+                            <div class="px-4 py-3 rounded-2xl text-sm leading-relaxed"
+                                 :class="msg.role === 'user' ? 'bg-gradient-to-br from-primary-500 to-primary-700 text-white rounded-br-sm' : 'bg-gray-50 border border-gray-200 text-gray-900 rounded-bl-sm'">
+                                <div v-html="formatMessage(msg.message)"></div>
+                            </div>
+                            <div class="text-xs text-gray-400 mt-1">{{ msg.timestamp }}</div>
+                        </div>
+                    </div>
+                    <div v-if="conversations.length === 0" class="text-center py-20 text-gray-400">
+                        {{ selectedDate === today ? '暂无今日对话' : '该日期暂无对话记录' }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            <div v-if="totalPages > 1" class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-wrap items-center justify-center gap-4">
+                <button 
+                    @click="prevPage" 
+                    :disabled="currentPage <= 1"
+                    class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    ← 上一页
+                </button>
+                <span class="text-gray-600">第 {{ currentPage }} / {{ totalPages }} 页</span>
+                <div class="flex items-center gap-2">
+                    <input 
+                        type="number" 
+                        v-model.number="jumpPage" 
+                        :min="1" 
+                        :max="totalPages" 
+                        @keyup.enter="goToPage"
+                        placeholder="页码"
+                        class="w-16 px-3 py-2 border-2 border-gray-200 rounded-lg text-center focus:border-primary-500 focus:outline-none"
+                    >
+                    <button 
+                        @click="goToPage" 
+                        class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-lg font-medium"
+                    >
+                        GO
+                    </button>
+                </div>
+                <button 
+                    @click="nextPage" 
+                    :disabled="currentPage >= totalPages"
+                    class="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    下一页→
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    conversations: [],
+                    loading: true,
+                    error: null,
+                    isConnected: true,
+                    username: '',
+                    availableDates: [],
+                    selectedDate: '',
+                    today: '',
+                    currentPage: 1,
+                    totalPages: 1,
+                    totalMessages: 0,
+                    perPage: 10,
+                    jumpPage: 1
+                }
+            },
+            methods: {
+                async checkAuth() {
+                    try {
+                        const response = await fetch('/api/check-auth');
+                        if (!response.ok) {
+                            window.location.href = '/login';
+                            return false;
+                        }
+                        const data = await response.json();
+                        this.username = data.username;
+                        return true;
+                    } catch (err) {
+                        window.location.href = '/login';
+                        return false;
+                    }
+                },
+
+                async logout() {
+                    try {
+                        await fetch('/api/logout', { method: 'POST' });
+                        window.location.href = '/login';
+                    } catch (err) {
+                        console.error('登出失败:', err);
+                    }
+                },
+
+                async fetchConversations(scrollToBottom = false) {
+                    this.loading = true;
+                    try {
+                        const response = await fetch(`/api/conversations?date=${this.selectedDate}&page=${this.currentPage}&per_page=${this.perPage}`);
+                        if (!response.ok) {
+                            if (response.status === 401) {
+                                window.location.href = '/login';
+                                return;
+                            }
+                            throw new Error('获取对话失败');
+                        }
+
+                        const data = await response.json();
+                        this.conversations = data.conversations || [];
+                        this.availableDates = data.available_dates || [];
+                        this.totalPages = data.pages || 1;
+                        this.totalMessages = data.total || 0;
+                        this.error = null;
+                        this.isConnected = true;
+
+                        if (this.availableDates.length > 0 && !this.selectedDate) {
+                            this.selectedDate = this.availableDates[0];
+                        }
+
+                        this.$nextTick(() => {
+                            const container = this.$refs.chatContainer;
+                            if (container) {
+                                if (scrollToBottom || this.selectedDate === this.today) {
+                                    container.scrollTop = container.scrollHeight;
+                                } else {
+                                    container.scrollTop = 0;
+                                }
+                            }
+                        });
+                    } catch (err) {
+                        console.error('获取对话失败:', err);
+                        this.error = '无法连接到服务器';
+                        this.isConnected = false;
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                changeDate() {
+                    this.currentPage = 1;
+                    const shouldScrollToBottom = (this.selectedDate === this.today);
+                    this.fetchConversations(shouldScrollToBottom);
+                },
+
+                prevPage() {
+                    if (this.currentPage > 1) {
+                        this.currentPage--;
+                        this.fetchConversations(false);
+                    }
+                },
+
+                nextPage() {
+                    if (this.currentPage < this.totalPages) {
+                        this.currentPage++;
+                        this.fetchConversations(false);
+                    }
+                },
+
+                changePerPage() {
+                    this.currentPage = 1;
+                    this.jumpPage = 1;
+                    this.fetchConversations(this.selectedDate === this.today);
+                },
+
+                goToPage() {
+                    if (this.jumpPage >= 1 && this.jumpPage <= this.totalPages) {
+                        this.currentPage = this.jumpPage;
+                        this.fetchConversations(false);
+                    }
+                },
+
+                formatMessage(message) {
+                    return message.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                },
+
+                formatDateDisplay(dateStr) {
+                    const date = new Date(dateStr);
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+
+                    if (dateStr === this.today) return '今天';
+                    if (dateStr === yesterday.toISOString().split('T')[0]) return '昨天';
+                    return dateStr;
+                }
+            },
+
+            async mounted() {
+                this.today = new Date().toISOString().split('T')[0];
+                this.selectedDate = this.today;
+
+                const authOk = await this.checkAuth();
+                if (authOk) {
+                    await this.fetchConversations();
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

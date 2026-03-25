@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作台 - 对话系统</title>
+    <!-- 本地资源 -->
+    <link rel="stylesheet" href="/static/index.css" />
+    <script src="/static/vue.global.js"></script>
+    <script src="/static/vue-demi.js"></script>
+    <script src="/static/vue-router.global.js"></script>
+    <script src="/static/pinia.iife.js"></script>
+    <script src="/static/axios.min.js"></script>
+    <script src="/static/element-plus.js"></script>
+    <!-- 添加错误处理 -->
+    <script>
+        window.addEventListener('error', function(e) {
+            console.error('全局错误:', e.message, e.filename, e.lineno);
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('未处理的Promise拒绝:', e.reason);
+        });
+    </script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        #app {
+            min-height: 100vh;
+        }
+        .aside {
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            height: 100vh;
+        }
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .sidebar-header h3 {
+            margin: 0 0 10px 0;
+            font-size: 20px;
+        }
+        .sidebar-header p {
+            margin: 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .logout-section {
+            padding: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .el-menu {
+            border: none !important;
+            background: transparent !important;
+        }
+        .el-menu-item {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        .el-menu-item:hover {
+            background: rgba(255, 255, 255, 0.1) !important;
+        }
+        .el-message {
+            position: fixed !important;
+            z-index: 9999 !important;
+        }
+        .message-content {
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted } = Vue;
+        const { createRouter, createWebHistory, useRoute } = VueRouter;
+        const { createPinia, defineStore } = Pinia;
+        const { ElMessage } = ElementPlus;
+
+        // ==================== Pinia Store ====================
+        const useUserStore = defineStore('user', {
+            state: () => ({
+                loggedIn: false,
+                username: '',
+                userId: null
+            }),
+            actions: {
+                async login(username, password) {
+                    try {
+                        const response = await axios.post('/api/login', { username, password });
+                        if (response.data.success) {
+                            this.loggedIn = true;
+                            this.username = username;
+                            this.userId = response.data.user_id;
+                            return true;
+                        }
+                        return false;
+                    } catch (error) {
+                        console.error('登录失败:', error);
+                        ElMessage.error('登录失败，请重试');
+                        return false;
+                    }
+                },
+                async logout() {
+                    try {
+                        await axios.post('/api/logout');
+                        this.loggedIn = false;
+                        this.username = '';
+                        this.userId = null;
+                    } catch (error) {
+                        console.error('登出失败:', error);
+                    }
+                },
+                async checkAuth() {
+                    try {
+                        const response = await axios.get('/api/check-auth');
+                        if (response.data.logged_in) {
+                            this.loggedIn = true;
+                            this.username = response.data.username;
+                            this.userId = response.data.user_id;
+                            return true;
+                        }
+                    } catch (error) {
+                        console.error('认证检查失败:', error);
+                    }
+                    return false;
+                }
+            }
+        });
+
+        // ==================== Components ====================
+        const Login = {
+            template: `
+                <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <el-card style="width: 400px;" shadow="always">
+                        <template #header>
+                            <h2 style="margin: 0;">🔐 欢迎回来</h2>
+                            <p style="margin: 10px 0 0 0; color: #666;">请登录以继续</p>
+                        </template>
+                        <el-form :model="loginForm" :rules="rules" ref="loginFormRef" label-width="80px">
+                            <el-form-item label="用户名" prop="username">
+                                <el-input v-model="loginForm.username" placeholder="请输入用户名" />
+                            </el-form-item>
+                            <el-form-item label="密码" prop="password">
+                                <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" show-password />
+                            </el-form-item>
+                            <el-form-item>
+                                <el-button type="primary" @click="handleLogin" :loading="loading" style="width: 100%;">
+                                    {{ loading ? '登录中...' : '登录' }}
+                                </el-button>
+                            </el-form-item>
+                        </el-form>
+                        <el-alert title="💡 默认账号信息" type="info" :closable="false" style="margin-top: 20px;">
+                            <p>账号：<strong>wangjian</strong></p>
+                            <p>密码：<strong>wangjianc</strong></p>
+                        </el-alert>
+                    </el-card>
+                </div>
+            `,
+            setup() {
+                const { login } = useUserStore();
+                const router = VueRouter.useRouter();
+                const loginFormRef = ref(null);
+                const loading = ref(false);
+                
+                const loginForm = reactive({
+                    username: 'wangjian',
+                    password: 'wangjianc'
+                });
+
+                const rules = {
+                    username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+                    password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+                };
+
+                const handleLogin = async () => {
+                    const valid = await loginFormRef.value.validate();
+                    if (!valid) return;
+                    
+                    loading.value = true;
+                    const success = await login(loginForm.username, loginForm.password);
+                    loading.value = false;
+                    
+                    if (success) {
+                        ElMessage.success('登录成功');
+                        router.push('/chat');
+                    } else {
+                        ElMessage.error('用户名或密码错误');
+                    }
+                };
+
+                return {
+                    loginFormRef,
+                    loginForm,
+                    rules,
+                    loading,
+                    handleLogin
+                };
+            }
+        };
+
+        const Chat = {
+            template: `
+                <el-container style="height: 100vh;">
+                    <el-aside width="250px" class="aside">
+                        <div class="sidebar-header">
+                            <h3>📋 工作台</h3>
+                            <p>{{ username }}</p>
+                        </div>
+                        <el-menu :default-active="activeMenu" @select="handleSelect">
+                            <el-menu-item index="1-1">
+                                <span>💬</span>
+                                <span>对话记录</span>
+                            </el-menu-item>
+                            <el-menu-item index="1-2">
+                                <span>📋</span>
+                                <span>工作计划</span>
+                            </el-menu-item>
+                        </el-menu>
+                        <div class="logout-section">
+                            <el-button @click="handleLogout" type="warning" plain>🚪 登出</el-button>
+                        </div>
+                    </el-aside>
+                    <el-main>
+                        <div style="background: white; padding: 20px; border-bottom: 1px solid #e4e7ed;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h2 style="margin: 0;">💬 对话记录</h2>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <el-select v-model="selectedDate" @change="fetchConversations" placeholder="选择日期" style="width: 150px;">
+                                        <el-option
+                                            v-for="date in availableDates"
+                                            :key="date"
+                                            :label="formatDateDisplay(date)"
+                                            :value="date"
+                                        />
+                                    </el-select>
+                                    <el-select v-model="perPage" @change="fetchConversations" style="width: 120px;">
+                                        <el-option label="10条/页" :value="10" />
+                                        <el-option label="20条/页" :value="20" />
+                                        <el-option label="30条/页" :value="30" />
+                                        <el-option label="50条/页" :value="50" />
+                                        <el-option label="100条/页" :value="100" />
+                                    </el-select>
+                                    <el-button type="primary" @click="fetchConversations(true, true)">🔄 刷新</el-button>
+                                    <el-button @click="showSyncDialog">📅 归档</el-button>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="background: #f5f7fa; padding: 20px;">
+                            <el-card shadow="never" style="min-height: calc(100vh - 160px);">
+                                <div v-loading="loading">
+                                    <div v-for="msg in conversations" :key="msg.id" style="margin-bottom: 20px;" :style="{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }">
+                                        <el-avatar :style="msg.role === 'user' ? 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'" style="margin: 0 10px;">
+                                            {{ msg.role === 'user' ? '王' : 'AI' }}
+                                        </el-avatar>
+                                        <div style="max-width: 70%;">
+                                            <el-card :style="msg.role === 'user' ? 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;' : 'background: #f8f9fa; border: 1px solid #e0e0e0;'">
+                                                <div class="message-content" v-html="formatMessage(msg.message)"></div>
+                                                <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">{{ msg.timestamp }}</div>
+                                            </el-card>
+                                        </div>
+                                    </div>
+                                    <el-empty v-if="conversations.length === 0" description="暂无对话记录" />
+                                </div>
+                                <el-pagination
+                                    v-if="totalPages > 1"
+                                    @current-change="handlePageChange"
+                                    :current-page="currentPage"
+                                    :page-size="perPage"
+                                    :total="totalMessages"
+                                    layout="prev, pager, next, jumper"
+                                    style="margin-top: 20px; justify-content: center;"
+                                />
+                            </el-card>
+                        </div>
+                    </el-main>
+                </el-container>
+
+                <el-dialog v-model="syncDialogVisible" title="归档对话" width="400px">
+                    <el-date-picker
+                        v-model="syncDate"
+                        type="date"
+                        placeholder="选择归档日期"
+                        format="YYYY-MM-DD"
+                        value-format="YYYY-MM-DD"
+                        style="width: 100%;"
+                    />
+                    <template #footer>
+                        <el-button @click="syncDialogVisible = false">取消</el-button>
+                        <el-button type="primary" @click="confirmSync">确认归档</el-button>
+                    </template>
+                </el-dialog>
+            `,
+            setup() {
+                const { username, userId, logout } = useUserStore();
+                const router = VueRouter.useRouter();
+                
+                const loading = ref(false);
+                const conversations = ref([]);
+                const availableDates = ref([]);
+                const selectedDate = ref('');
+                const perPage = ref(10);
+                const currentPage = ref(1);
+                const totalPages = ref(1);
+                const totalMessages = ref(0);
+                const activeMenu = ref('1-1');
+
+                const formatDateDisplay = (dateStr) => {
+                    const today = new Date().toISOString().split('T')[0];
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    if (dateStr === today) return '今天';
+                    if (dateStr === yesterday.toISOString().split('T')[0]) return '昨天';
+                    return dateStr;
+                };
+
+                const formatMessage = (msg) => {
+                    return msg.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                };
+
+                const fetchConversations = async (scrollToBottom = false, sync = false) => {
+                    loading.value = true;
+                    try {
+                        // 如果需要同步，先调用同步API
+                        if (sync) {
+                            ElMessage.info('正在同步最新对话...');
+                            try {
+                                await axios.post('/api/sync-conversations');
+                                ElMessage.success('同步完成！');
+                            } catch (syncError) {
+                                console.error('同步失败:', syncError);
+                                ElMessage.warning('同步失败，但继续加载对话');
+                            }
+                        }
+
+                        const response = await axios.get('/api/conversations', {
+                            params: {
+                                date: selectedDate.value,
+                                page: currentPage.value,
+                                per_page: perPage.value
+                            }
+                        });
+                        conversations.value = response.data.conversations;
+                        availableDates.value = response.data.available_dates;
+                        totalPages.value = response.data.pages;
+                        totalMessages.value = response.data.total;
+                    } catch (error) {
+                        console.error('获取对话失败:', error);
+                        ElMessage.error('获取对话失败: ' + (error.response?.data?.error || error.message));
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const handlePageChange = (page) => {
+                    currentPage.value = page;
+                    fetchConversations();
+                };
+
+                const handleSelect = (key) => {
+                    if (key === '1-2') {
+                        router.push('/workplan');
+                    }
+                };
+
+                const handleLogout = async () => {
+                    await logout();
+                    router.push('/login');
+                };
+
+                const syncDialogVisible = ref(false);
+                const syncDate = ref('');
+
+                const showSyncDialog = () => {
+                    // 默认显示昨天
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    syncDate.value = yesterday.toISOString().split('T')[0];
+                    syncDialogVisible.value = true;
+                };
+
+                const confirmSync = async () => {
+                    if (!syncDate.value) {
+                        ElMessage.warning('请选择日期');
+                        return;
+                    }
+
+                    try {
+                        ElMessage.info(`正在归档对话到 ${syncDate.value}...`);
+                        const response = await axios.post('/api/sync-conversations', {
+                            target_date: syncDate.value
+                        });
+
+                        if (response.data.success) {
+                            ElMessage.success(`归档成功！新增 ${response.data.new_count} 条对话`);
+                            syncDialogVisible.value = false;
+                            await fetchConversations();
+                        }
+                    } catch (error) {
+                        ElMessage.error('归档失败');
+                    }
+                };
+
+                onMounted(async () => {
+                    selectedDate.value = new Date().toISOString().split('T')[0];
+                    await fetchConversations();
+                });
+
+                return {
+                    username,
+                    loading,
+                    conversations,
+                    availableDates,
+                    selectedDate,
+                    perPage,
+                    currentPage,
+                    totalPages,
+                    totalMessages,
+                    activeMenu,
+                    formatDateDisplay,
+                    formatMessage,
+                    fetchConversations,
+                    handlePageChange,
+                    handleSelect,
+                    handleLogout,
+                    syncDialogVisible,
+                    syncDate,
+                    showSyncDialog,
+                    confirmSync
+                };
+            }
+        };
+
+        const WorkPlan = {
+            template: `
+                <el-container style="height: 100vh;">
+                    <el-aside width="250px" class="aside">
+                        <div class="sidebar-header">
+                            <h3>📋 工作台</h3>
+                            <p>{{ username }}</p>
+                        </div>
+                        <el-menu :default-active="activeMenu" @select="handleSelect">
+                            <el-menu-item index="2-1">
+                                <span>💬</                <span>对话记录</span>
+                            </el-menu-item>
+                            <el-menu-item index="2-2">
+                                <span>📋</span>
+                                <span>工作计划</span>
+                            </el-menu-item>
+                        </el-menu>
+                        <div class="logout-section">
+                            <el-button @click="handleLogout" type="warning" plain>🚪 登出</el-button>
+                        </div>
+                    </el-aside>
+                    <el-main>
+                        <div style="background: white; padding: 20px; border-bottom: 1px solid #e4e7ed;">
+                            <h2>📋 工作计划</h2>
+                        </div>
+                        <div style="background: #f5f7fa; padding: 20px;">
+                            <el-card shadow="never">
+                                <div style="margin-bottom: 20px;">
+                                    <el-date-picker
+                                        v-model="selectedDate"
+                                        @change="loadWorkPlan"
+                                        placeholder="选择日期"
+                                        format="YYYY-MM-DD"
+                                        value-format="YYYY-MM-DD"
+                                    />
+                                    <el-button @click="goToToday" style="margin-left: 10px;">回到今天</el-button>
+                                </div>
+                                <div v-loading="loading">
+                                    <el-form :model="workPlan" label-width="100px">
+                                        <el-card header="🎯 本周目标" shadow="never" style="margin-bottom: 20px;">
+                                            <el-form-item label="目标内容">
+                                                <el-input
+                                                    v-model="workPlan.week_goals"
+                                                    type="textarea"
+                                                    :rows="6"
+                                                    placeholder="输入本周的目标和计划..."
+                                                    @input="hasChanges = true"
+                                                />
+                                            </el-form-item>
+                                            <el-form-item>
+                                                <el-button type="primary" @click="saveWorkPlan" :loading="saving">💾 保存</el-button>
+                                            </el-form-item>
+                                        </el-card>
+
+                                        <el-card header="📝 昨日工作" shadow="never" style="margin-bottom: 20px;">
+                                            <el-form-item label="工作内容">
+                                                <el-input
+                                                    v-model="workPlan.yesterday_work"
+                                                    type="textarea"
+                                                    :rows="6"
+                                                    placeholder="记录昨天完成的工作..."
+                                                    @input="hasChanges = true"
+                                                />
+                                            </el-form-item>
+                                            <el-form-item>
+                                                <el-button type="primary" @click="saveWorkPlan" :loading="saving">💾 保存</el-button>
+                                            </el-form-item>
+                                        </el-card>
+
+                                        <el-card header="✅ 今日计划" shadow="never">
+                                            <el-form-item label="任务清单">
+                                                <el-input
+                                                    v-model="workPlan.today_plan"
+                                                    type="textarea"
+                                                    :rows="6"
+                                                    placeholder="规划今天要完成的任务..."
+                                                    @input="hasChanges = true"
+                                                />
+                                            </el-form-item>
+                                            <el-form-item>
+                                                <el-button type="primary" @click="saveWorkPlan" :loading="saving">💾 保存</el-button>
+                                            </el-form-item>
+                                        </el-card>
+                                    </el-form>
+                                </div>
+                            </el-card>
+                        </div>
+                    </el-main>
+                </el-container>
+            `,
+            setup() {
+                const { username, userId, logout } = useUserStore();
+                const router = VueRouter.useRouter();
+                
+                const loading = ref(false);
+                const saving = ref(false);
+                const workPlan = reactive({
+                    week_goals: '',
+                    yesterday_work: '',
+                    today_plan: ''
+                });
+                const selectedDate = ref('');
+                const hasChanges = ref(false);
+                const activeMenu = ref('2-2');
+
+                const loadWorkPlan = async () => {
+                    loading.value = true;
+                    try {
+                        const response = await axios.get('/api/workplan', {
+                            params: { date: selectedDate.value }
+                        });
+                        workPlan.week_goals = response.data.week_goals || '';
+                        workPlan.yesterday_work = response.data.yesterday_work || '';
+                        workPlan.today_plan = response.data.today_plan || '';
+                        hasChanges.value = false;
+                    } catch (error) {
+                        ElMessage.error('加载工作计划失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const saveWorkPlan = async () => {
+                    saving.value = true;
+                    try {
+                        await axios.post('/api/workplan', {
+                            date: selectedDate.value,
+                            week_goals: workPlan.week_goals,
+                            yesterday_work: workPlan.yesterday_work,
+                            today_plan: workPlan.today_plan
+                        });
+                        hasChanges.value = false;
+                        ElMessage.success('保存成功！');
+                    } catch (error) {
+                        ElMessage.error('保存失败，请重试');
+                    } finally {
+                        saving.value = false;
+                    }
+                };
+
+                const goToToday = () => {
+                    selectedDate.value = new Date().toISOString().split('T')[0];
+                    loadWorkPlan();
+                };
+
+                const handleSelect = (key) => {
+                    if (key === '2-1') {
+                        router.push('/chat');
+                    }
+                };
+
+                const handleLogout = async () => {
+                    await logout();
+                    router.push('/login');
+                };
+
+                onMounted(async () => {
+                    selectedDate.value = new Date().toISOString().split('T')[0];
+                    await loadWorkPlan();
+                });
+
+                return {
+                    username,
+                    loading,
+                    saving,
+                    workPlan,
+                    selectedDate,
+                    hasChanges,
+                    activeMenu,
+                    loadWorkPlan,
+                    saveWorkPlan,
+                    goToToday,
+                    handleSelect,
+                    handleLogout
+                };
+            }
+        };
+
+        // ==================== Router ====================
+        const routes = [
+            { path: '/', redirect: '/login' },
+            { path: '/login', component: Login },
+            { path: '/chat', component: Chat, meta: { requiresAuth: true } },
+            { path: '/workplan', component: WorkPlan, meta: { requiresAuth: true } }
+        ];
+
+        const router = createRouter({
+            history: createWebHistory(),
+            routes
+        });
+
+        // ==================== Navigation Guard ====================
+        router.beforeEach((to, from, next) => {
+            const userStore = useUserStore();
+            
+            if (to.path !== '/login' && !userStore.loggedIn) {
+                next('/login');
+            } else {
+                next();
+            }
+        });
+
+        // ==================== Store & App ====================
+        const pinia = createPinia();
+        const app = createApp({
+            template: `<router-view />`,
+            setup() {
+                const userStore = useUserStore();
+
+                onMounted(() => {
+                    userStore.checkAuth();
+                });
+
+                return {};
+            }
+        });
+
+        app.use(pinia);
+        app.use(router);
+        app.use(ElementPlus);
+        app.mount('#app');
+    </script>
+</body>
+</html>
