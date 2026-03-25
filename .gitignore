@@ -1,0 +1,18 @@
+# 数据库数据
+db-data/
+
+# 环境变量(包含敏感信息)
+.env
+
+# WordPress 核心(使用 Docker 镜像)
+# wp-content 除外
+
+# 日志文件
+*.log
+
+# 上传的文件(如果很大可以选择忽略)
+wp-content/uploads/*
+
+# WordPress 缓存
+wp-content/cache/
+wp-content/upgrade/
