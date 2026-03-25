@@ -20,27 +20,18 @@ fi
 
 TITLE="$1"
 CONTENT="$2"
-# 生成 slug（URL友好的标题）
-SLUG=$(echo "$TITLE" | sed 's/[^a-zA-Z0-9\u4e00-\u9fa5]/-/g' | tr '[:upper:]' '[:lower:]')
+SLUG="ai-news-$(date +%Y%m%d%H%M%S)"
 
 echo "正在发布文章..."
 echo "标题: $TITLE"
 echo ""
 
-# 插入文章
-docker exec wordpress-db mariadb -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" << EOF
-INSERT INTO wp_posts 
-(post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, 
-post_status, comment_status, ping_status, post_password, post_name, to_ping, pinged, 
-post_modified, post_modified_gmt, post_content_filtered, post_parent, guid, 
-menu_order, post_type, post_mime_type, comment_count)
-VALUES 
-(1, NOW(), UTC_TIMESTAMP(), 
-'$CONTENT', 
-'', '$TITLE', '', 'publish', 'open', 'open', '', 
-'$SLUG', '', '', NOW(), UTC_TIMESTAMP(), '', 0, 
-'$WP_URL/?p=999', 0, 'post', '', 0);
-EOF
+# 使用环境变量传递内容，避免 heredoc 转义问题
+export WP_PUBLISH_TITLE="$TITLE"
+export WP_PUBLISH_CONTENT="$CONTENT"
+export WP_PUBLISH_SLUG="$SLUG"
+
+docker exec wordpress-db mariadb -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" -e "INSERT INTO wp_posts (post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt, post_status, comment_status, ping_status, post_password, post_name, to_ping, pinged, post_modified, post_modified_gmt, post_content_filtered, post_parent, guid, menu_order, post_type, post_mime_type, comment_count) VALUES (1, NOW(), UTC_TIMESTAMP(), '\${WP_PUBLISH_CONTENT}', '\${WP_PUBLISH_TITLE}', '', 'publish', 'open', 'open', '', '\${WP_PUBLISH_SLUG}', '', '', NOW(), UTC_TIMESTAMP(), '', 0, '$WP_URL/?p=999', 0, 'post', '', 0);" 2>&1
 
 if [ $? -eq 0 ]; then
   echo "✓ 文章发布成功！"
