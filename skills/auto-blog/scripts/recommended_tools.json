@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-03-28",
+  "last_updated": "2026-03-31",
   "recommended_tools": [
     "Perplexity AI",
     "Notion AI",
@@ -28,6 +28,10 @@
     "Llama",
     "AutoGPT",
     "AgentGPT",
-    "BabyAGI"
+    "BabyAGI",
+    "OpenAI",
+    "Cursor",
+    "ChatGPT",
+    "Anthropic"
   ]
 }

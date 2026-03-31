@@ -92,11 +92,11 @@ check_credentials() {
 perform_search() {
     log "开始搜索AI资讯..."
 
-    # Tavily搜索（使用中文查询，获取中文结果）
-    log "1. 执行Tavily搜索..."
+    # Tavily搜索（英文查询获取美国AI新闻）
+    log "1. 执行Tavily搜索（美国AI新闻）..."
     /root/.nvm/versions/node/v22.22.1/bin/node /root/.openclaw/workspace/skills/tavily-search/scripts/search.mjs \
-        "人工智能 AI 大模型 最新新闻动态 2026" \
-        --topic general -n 5 > /tmp/tavily_result.txt 2>&1
+        "artificial intelligence AI latest news United States OpenAI Google Anthropic 2026" \
+        --topic news -n 5 --days 3 > /tmp/tavily_result.txt 2>&1
 
     if [ $? -eq 0 ] && grep -q "## Answer" /tmp/tavily_result.txt; then
         log "✓ Tavily搜索成功"
@@ -188,13 +188,19 @@ today = datetime.now().strftime('%Y年%m月%d日')
 date_short = datetime.now().strftime('%Y-%m-%d')
 time_now = datetime.now().strftime('%H:%M:%S')
 
-# 提取Tavily结果 - 直接使用中文来源，跳过英文Answer
+# 提取Tavily结果 - 美国AI新闻（英文翻译为中文）
 tavily_answer = "全球AI技术持续快速发展，各大科技公司不断推出新的产品和服务。"
 try:
     with open('/tmp/tavily_result.txt', 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # 提取来源条目（标题 + 摘要）- 这些都是中文的
+    # 先提取英文Answer摘要并翻译
+    answer_en = ""
+    if '## Answer' in content:
+        answer_section = content.split('## Answer')[1].split('## Sources')[0]
+        answer_en = answer_section.strip()
+
+    # 提取来源条目
     sources_section = content.split('## Sources')[1] if '## Sources' in content else ''
     source_blocks = re.split(r'\n\- \*\*', sources_section)
 
@@ -203,15 +209,17 @@ try:
         block = block.strip()
         if not block:
             continue
-        # 提取标题（去掉尾部的 ** 和相关度标记）
+        # 提取标题
         title_match = re.match(r'(.+?)\*\*', block)
-        title = title_match.group(1).strip() if title_match else block.split('\n')[0].strip()
+        title_en = title_match.group(1).strip() if title_match else block.split('\n')[0].strip()
+        # 去掉标题里的相关度标记
+        title_en = re.sub(r'\s*\(relevance:\s*\d+%\)\s*', '', title_en)
 
         # 提取URL
         url_match = re.search(r'(https?://\S+)', block)
         url = url_match.group(1) if url_match else ''
 
-        # 提取摘要内容（URL后面、空行之前的文字）
+        # 提取摘要内容
         content_lines = []
         for line in block.split('\n'):
             line = line.strip()
@@ -219,17 +227,55 @@ try:
                 continue
             content_lines.append(line)
 
-        summary = ' '.join(content_lines)[:400]  # 截取400字
-        # 清理摘要：移除标题重复、relevance标记、多余的#号
-        summary = re.sub(r'\s*\(relevance:\s*\d+%\)\s*', '', summary)
-        summary = re.sub(r'^.*?\*\*\s*', '', summary, count=1)  # 去掉可能残留的**标记
-        summary = re.sub(r'^#{1,6}\s*', '', summary)  # 去掉 markdown 标题标记
-        # 去掉网页导航残留（如 "新闻. ### 体育. ### 娱乐."）
-        summary = re.sub(r'(?:###?\s*[\u4e00-\u9fff]{1,6}[.\s]*){2,}', '', summary)
-        # 清理多余标点
-        summary = re.sub(r'\.{3,}', '...', summary)
-        summary = summary.strip('.。# ')
-        # 如果摘要和标题太相似，跳过摘要
+        summary_en = ' '.join(content_lines)[:400]
+        summary_en = re.sub(r'\s*\(relevance:\s*\d+%\)\s*', '', summary_en)
+        summary_en = re.sub(r'^.*?\*\*\s*', '', summary_en, count=1)
+        summary_en = re.sub(r'^#{1,6}\s*', '', summary_en)
+        summary_en = re.sub(r'(?:###?\s*[\u4e00-\u9fff]{1,6}[.\s]*){2,}', '', summary_en)
+        summary_en = re.sub(r'\.{3,}', '...', summary_en)
+        summary_en = summary_en.strip('.。# ')
+
+        # 检测是否为英文，需要翻译
+        chinese_chars = sum(1 for c in title_en if '\u4e00' <= c <= '\u9fff')
+        is_en = chinese_chars / max(len(title_en), 1) < 0.2
+
+        if is_en:
+            # 翻译标题
+            import subprocess as sp
+            title_cn = title_en
+            try:
+                r = sp.run(
+                    ['python3', '/root/.openclaw/workspace/skills/auto-blog/scripts/translate-en2cn.py', title_en],
+                    capture_output=True, text=True, timeout=15
+                )
+                if r.stdout.strip():
+                    title_cn = r.stdout.strip()
+            except:
+                pass
+
+            # 翻译摘要
+            summary_cn = summary_en
+            if summary_en and len(summary_en) > 20:
+                try:
+                    # 将摘要写入临时文件翻译（避免命令行参数过长）
+                    with open('/tmp/tavily_summary_en.txt', 'w') as tf:
+                        tf.write(summary_en)
+                    r = sp.run(
+                        ['python3', '/root/.openclaw/workspace/skills/auto-blog/scripts/translate-en2cn.py', '/tmp/tavily_summary_en.txt'],
+                        capture_output=True, text=True, timeout=20
+                    )
+                    if r.stdout.strip() and len(r.stdout.strip()) > 10:
+                        summary_cn = r.stdout.strip()
+                except:
+                    pass
+
+            title = title_cn
+            summary = summary_cn
+            print(f"✓ 翻译: {title_en[:40]}... -> {title_cn[:40]}...", flush=True)
+        else:
+            title = title_en
+            summary = summary_en
+
         if title and summary[:len(title)].replace(' ', '') == title.replace(' ', ''):
             summary = summary[len(title):].strip()
 
@@ -243,7 +289,7 @@ try:
 
     if tavily_items:
         tavily_answer = "<br><br>".join(tavily_items)
-        print(f"✓ 使用Tavily中文来源，共{len(tavily_items)}条", flush=True)
+        print(f"✓ Tavily美国AI新闻处理完成，共{len(tavily_items)}条", flush=True)
     else:
         print("⚠ 未提取到Tavily来源，使用默认内容", flush=True)
 except Exception as e:
