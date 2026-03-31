@@ -16,3 +16,4 @@ wp-content/uploads/*
 # WordPress 缓存
 wp-content/cache/
 wp-content/upgrade/
+wp-content/ >> .gitignore

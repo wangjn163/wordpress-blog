@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.log
+venv/
+.auto_sync_state.json
+.conversation_state.json
+live_conversations.json
+data/*.backup
+data/*.synced_*
+archive/

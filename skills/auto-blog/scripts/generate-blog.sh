@@ -360,7 +360,7 @@ publish_blog() {
     TITLE=$(cat /tmp/blog_title.txt)
 
     # 调用WordPress发布脚本
-    bash /root/.openclaw/workspace/tools/wp-publish-v2.sh "$TITLE" "$CONTENT" > /tmp/publish_result.txt 2>&1
+    bash /root/.openclaw/workspace/skills/auto-blog/scripts/wp-publish-v2.sh "$TITLE" "$CONTENT" > /tmp/publish_result.txt 2>&1
     PUBLISH_EXIT_CODE=$?
 
     # 检查是否真的成功（看输出中是否包含"成功"）
