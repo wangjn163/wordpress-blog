@@ -88,72 +88,32 @@ check_credentials() {
     log "✓ API凭证检查通过"
 }
 
-# 执行搜索
+# 执行搜索（并行化）
 perform_search() {
-    log "开始搜索AI资讯..."
+    log "开始搜索AI资讯（三源并行）..."
 
-    # Tavily搜索（英文查询获取美国AI新闻）
-    log "1. 执行Tavily搜索（美国AI新闻）..."
+    export TENCENT_NEWS_APIKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzQ1OTQ5MzYsImp0aSI6ImY5NTVlYTFhLWE2OTgtNDNjNy1iNGYyLTc0MjZhMWY1YjNmNiIsInN1aWQiOiI4UUlmM254WjY0WWV1ai9jNFFzPSJ9.rOzOd2oop1_kD3HdoV_6KSCCc3c3my0x21WHSJEdems'
+
+    # 三个搜索同时并行执行
     /root/.nvm/versions/node/v22.22.1/bin/node /root/.openclaw/workspace/skills/tavily-search/scripts/search.mjs \
         "artificial intelligence AI latest news United States OpenAI Google Anthropic 2026" \
-        --topic news -n 5 --days 3 > /tmp/tavily_result.txt 2>&1
+        --topic news -n 5 --days 3 > /tmp/tavily_result.txt 2>&1 \
+        && log "✓ Tavily搜索成功" || log "⚠ Tavily搜索失败" &
 
-    if [ $? -eq 0 ] && grep -q "## Answer" /tmp/tavily_result.txt; then
-        log "✓ Tavily搜索成功"
-    else
-        log "⚠ Tavily搜索失败，使用默认内容"
-    fi
-
-    # 百度搜索（添加时间过滤，只搜索最近2天）
-    log "2. 执行百度搜索..."
     python3 /root/.openclaw/workspace/skills/baidu-search/scripts/search.py \
-        '{"query": "人工智能 AI 最新 大模型 新闻 动态", "count": 3, "freshness": "pw"}' > /tmp/baidu_result.json 2>&1
+        '{"query": "人工智能 AI 最新 大模型 新闻 动态", "count": 3, "freshness": "pw"}' > /tmp/baidu_result.json 2>&1 \
+        && log "✓ 百度搜索成功" || log "⚠ 百度搜索失败" &
 
-    if [ $? -eq 0 ] && [ -s /tmp/baidu_result.json ]; then
-        log "✓ 百度搜索成功"
-    else
-        log "⚠ 百度搜索失败，使用默认内容"
-    fi
+    /root/.openclaw/workspace/skills/tencent-news/tencent-news-cli ai-daily > /tmp/tencent_news.txt 2>&1 \
+        && log "✓ 腾讯新闻搜索成功" || log "⚠ 腾讯新闻搜索失败" &
 
-    # 腾讯新闻AI日报
-    log "3. 执行腾讯新闻AI日报查询..."
-    export TENCENT_NEWS_APIKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzQ1OTQ5MzYsImp0aSI6ImY5NTVlYTFhLWE2OTgtNDNjNy1iNGYyLTc0MjZhMWY1YjNmNiIsInN1aWQiOiI4UUlmM254WjY0WWV1ai9jNFFzPSJ9.rOzOd2oop1_kD3HdoV_6KSCCc3c3my0x21WHSJEdems'
-    /root/.openclaw/workspace/skills/tencent-news/tencent-news-cli ai-daily > /tmp/tencent_news.txt 2>&1
+    # 等待所有搜索完成
+    wait
 
-    if [ $? -eq 0 ] && [ -s /tmp/tencent_news.txt ]; then
-        log "✓ 腾讯新闻搜索成功"
-    else
-        log "⚠ 腾讯新闻搜索失败，使用默认内容"
-    fi
+    log "✓ 三源搜索完成"
 }
 
-# 生成AI工具推荐
-generate_tools_recommendation() {
-    log "生成AI工具推荐..."
-
-    # 调用工具推荐脚本
-    bash /root/.openclaw/workspace/skills/auto-blog/scripts/get-ai-tools.sh
-
-    if [ $? -eq 0 ]; then
-        # 读取推荐结果 - 提取工具名称（跳过标题行）
-        if [ -f /tmp/ai_tools_recommendation.txt ]; then
-            # 使用iconv确保UTF-8编码，然后提取工具名称
-            tools=$(iconv -f UTF-8 -t UTF-8 /tmp/ai_tools_recommendation.txt 2>/dev/null | grep -v "^##" | grep -v "^$" | tr '\n' '、' | sed 's/、$//')
-            if [ -n "$tools" ]; then
-                echo "$tools" > /tmp/final_tools.txt
-                log "✓ AI工具推荐已生成: $tools"
-                return 0
-            fi
-        fi
-    fi
-
-    # 如果生成失败，使用默认内容
-    echo "更多AI工具正在收集中，敬请期待..." > /tmp/final_tools.txt
-    log "⚠ 使用默认工具推荐"
-    return 1
-}
-
-# 生成博客内容（使用智能关键词替换）
+# 内容生成（跳过无用的AI工具推荐）
 generate_content() {
     log "生成博客内容..."
 
@@ -164,62 +124,51 @@ import json
 import os
 import re
 from datetime import datetime
-
-# 先生成工具推荐
-print("生成AI工具推荐...", flush=True)
-result = subprocess.run(['bash', '/root/.openclaw/workspace/skills/auto-blog/scripts/get-ai-tools.sh'],
-                       capture_output=True, text=True)
-
-tools_recommendation = "更多AI工具正在收集中，敬请期待..."
-try:
-    with open('/tmp/ai_tools_recommendation.txt', 'r', encoding='utf-8') as f:
-        content = f.read()
-        # 提取工具名称
-        tools = '\n'.join([line for line in content.split('\n') if not line.startswith('##') and line.strip()])
-        if tools:
-            tools_recommendation = tools.replace('\n', '、')
-            print(f"✓ AI工具推荐已生成: {tools_recommendation}", flush=True)
-        else:
-            print("⚠ 未找到新工具，使用默认推荐", flush=True)
-except Exception as e:
-    print(f"⚠ 工具推荐读取失败: {e}", flush=True)
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 today = datetime.now().strftime('%Y年%m月%d日')
 date_short = datetime.now().strftime('%Y-%m-%d')
 time_now = datetime.now().strftime('%H:%M:%S')
 
-# 提取Tavily结果 - 美国AI新闻（英文翻译为中文）
+TRANSLATE_SCRIPT = '/root/.openclaw/workspace/skills/auto-blog/scripts/translate-en2cn.py'
+
+def translate_one(text):
+    """翻译单条文本（供并行调用）"""
+    try:
+        r = subprocess.run(
+            ['python3', TRANSLATE_SCRIPT, text],
+            capture_output=True, text=True, timeout=15
+        )
+        result = r.stdout.strip()
+        if result and len(result) > 5:
+            return result
+    except:
+        pass
+    return text
+
+# 提取Tavily结果 - 美国AI新闻（英文翻译为中文，并行）
 tavily_answer = "全球AI技术持续快速发展，各大科技公司不断推出新的产品和服务。"
 try:
     with open('/tmp/tavily_result.txt', 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # 先提取英文Answer摘要并翻译
-    answer_en = ""
-    if '## Answer' in content:
-        answer_section = content.split('## Answer')[1].split('## Sources')[0]
-        answer_en = answer_section.strip()
-
     # 提取来源条目
     sources_section = content.split('## Sources')[1] if '## Sources' in content else ''
     source_blocks = re.split(r'\n\- \*\*', sources_section)
 
-    tavily_items = []
+    # 第一遍：提取原始英文条目
+    raw_items = []
     for block in source_blocks[:5]:
         block = block.strip()
         if not block:
             continue
-        # 提取标题
         title_match = re.match(r'(.+?)\*\*', block)
         title_en = title_match.group(1).strip() if title_match else block.split('\n')[0].strip()
-        # 去掉标题里的相关度标记
         title_en = re.sub(r'\s*\(relevance:\s*\d+%\)\s*', '', title_en)
 
-        # 提取URL
         url_match = re.search(r'(https?://\S+)', block)
         url = url_match.group(1) if url_match else ''
 
-        # 提取摘要内容
         content_lines = []
         for line in block.split('\n'):
             line = line.strip()
@@ -235,46 +184,36 @@ try:
         summary_en = re.sub(r'\.{3,}', '...', summary_en)
         summary_en = summary_en.strip('.。# ')
 
-        # 检测是否为英文，需要翻译
         chinese_chars = sum(1 for c in title_en if '\u4e00' <= c <= '\u9fff')
         is_en = chinese_chars / max(len(title_en), 1) < 0.2
 
-        if is_en:
-            # 翻译标题
-            import subprocess as sp
-            title_cn = title_en
-            try:
-                r = sp.run(
-                    ['python3', '/root/.openclaw/workspace/skills/auto-blog/scripts/translate-en2cn.py', title_en],
-                    capture_output=True, text=True, timeout=15
-                )
-                if r.stdout.strip():
-                    title_cn = r.stdout.strip()
-            except:
-                pass
+        raw_items.append({'title': title_en, 'summary': summary_en, 'url': url, 'is_en': is_en})
 
-            # 翻译摘要
-            summary_cn = summary_en
-            if summary_en and len(summary_en) > 20:
-                try:
-                    # 将摘要写入临时文件翻译（避免命令行参数过长）
-                    with open('/tmp/tavily_summary_en.txt', 'w') as tf:
-                        tf.write(summary_en)
-                    r = sp.run(
-                        ['python3', '/root/.openclaw/workspace/skills/auto-blog/scripts/translate-en2cn.py', '/tmp/tavily_summary_en.txt'],
-                        capture_output=True, text=True, timeout=20
-                    )
-                    if r.stdout.strip() and len(r.stdout.strip()) > 10:
-                        summary_cn = r.stdout.strip()
-                except:
-                    pass
+    # 第二遍：收集需要翻译的文本，并行翻译
+    translate_tasks = []
+    for i, item in enumerate(raw_items):
+        if item['is_en']:
+            translate_tasks.append((i, 'title', item['title']))
+            if item['summary'] and len(item['summary']) > 20:
+                translate_tasks.append((i, 'summary', item['summary']))
 
-            title = title_cn
-            summary = summary_cn
-            print(f"✓ 翻译: {title_en[:40]}... -> {title_cn[:40]}...", flush=True)
-        else:
-            title = title_en
-            summary = summary_en
+    if translate_tasks:
+        print(f"并行翻译 {len(translate_tasks)} 个文本段...", flush=True)
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(translate_one, text): (idx, field) for idx, field, text in translate_tasks}
+            for future in as_completed(futures):
+                idx, field = futures[future]
+                raw_items[idx][field] = future.result()
+
+    # 第三遍：组装HTML
+    tavily_items = []
+    for item in raw_items:
+        title = item['title']
+        summary = item['summary']
+        url = item['url']
+
+        if item['is_en']:
+            print(f"✓ 翻译: {title[:40]}...", flush=True)
 
         if title and summary[:len(title)].replace(' ', '') == title.replace(' ', ''):
             summary = summary[len(title):].strip()
@@ -457,7 +396,6 @@ publish_blog() {
 cleanup() {
     log "清理临时文件..."
     rm -f /tmp/tavily_result.txt /tmp/baidu_result.json /tmp/blog_content.txt /tmp/blog_title.txt /tmp/publish_result.txt
-    rm -f /tmp/ai_tools_recommendation.txt /tmp/final_tools.txt
     log "✓ 清理完成"
 }
 
