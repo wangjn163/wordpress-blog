@@ -1,12 +1,105 @@
 <?php
 /**
- * Index Template - 美化版
+ * Index Template - 美化版 + 搜索功能
  */
 
 get_header();
 ?>
 
 <style>
+    /* 搜索框样式 */
+    .search-container {
+        max-width: 900px;
+        margin: 20px auto 30px;
+        padding: 0 20px;
+    }
+
+    .search-form-wrapper {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 25px 30px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        border: 2px solid #dee2e6;
+    }
+
+    .search-form-wrapper h3 {
+        margin: 0 0 15px 0;
+        font-size: 18px;
+        color: #2c3e50;
+        font-weight: 600;
+    }
+
+    .search-form {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .search-input-wrapper {
+        flex: 1;
+        position: relative;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 14px 20px 14px 45px;
+        border: 2px solid #cbd5e0;
+        border-radius: 25px;
+        font-size: 16px;
+        transition: all 0.3s ease;
+        background: white;
+        color: #2c3e50;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #0073aa;
+        box-shadow: 0 0 0 3px rgba(0,115,170,0.1);
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 18px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #7f8c8d;
+        font-size: 18px;
+    }
+
+    .search-button {
+        padding: 14px 32px;
+        background: linear-gradient(135deg, #0073aa 0%, #005177 100%);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,115,170,0.3);
+        white-space: nowrap;
+    }
+
+    .search-button:hover {
+        background: linear-gradient(135deg, #005177 0%, #0073aa 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,115,170,0.4);
+    }
+
+    @media (max-width: 768px) {
+        .search-form {
+            flex-direction: column;
+        }
+
+        .search-button {
+            width: 100%;
+        }
+
+        .search-container {
+            padding: 0 15px;
+        }
+    }
+
     /* 整体容器 */
     .site-content {
         max-width: 900px;
@@ -184,6 +277,24 @@ get_header();
         font-size: 18px;
     }
 </style>
+
+<!-- 搜索框 -->
+<div class="search-container">
+    <div class="search-form-wrapper">
+        <h3>🔍 搜索文章</h3>
+        <form role="search" method="get" class="search-form" action="<?php echo home_url('/'); ?>">
+            <div class="search-input-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="search" 
+                       class="search-input" 
+                       placeholder="输入关键词搜索文章..." 
+                       value="<?php echo get_search_query(); ?>" 
+                       name="s" />
+            </div>
+            <button type="submit" class="search-button">搜索</button>
+        </form>
+    </div>
+</div>
 
 <div class="site-content">
     <?php

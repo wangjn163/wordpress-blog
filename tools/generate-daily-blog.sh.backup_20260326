@@ -1,0 +1,82 @@
+#!/bin/bash
+LOG_FILE="/var/log/blog-auto-generate.log"
+export TAVILY_API_KEY="REDACTED_TAVILY_API_KEY"
+cd /root/.openclaw/workspace || exit 1
+
+TODAY=$(date '+%Y年%m月%d日')
+DATE_SHORT=$(date '+%Y-%m-%d')
+TIME_NOW=$(date '+%H:%M:%S')
+TITLE="AI 每日资讯 – $TODAY"
+SLUG="ai-news-$(date +%Y%m%d)"
+
+echo "========================================" >> "$LOG_FILE"
+echo "开始时间: $(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
+echo "正在搜索..." >> "$LOG_FILE"
+
+rm -f /tmp/tavily_result.txt 2>/dev/null
+timeout 90 /root/.nvm/versions/node/v22.22.1/bin/node /root/.openclaw/workspace/skills/tavily-search/scripts/search.mjs "AI人工智能 news" --topic general -n 3 > /tmp/tavily_result.txt 2>&1
+
+if grep -q "## Answer" /tmp/tavily_result.txt 2>/dev/null; then
+    ANSWER=$(sed -n '/## Answer/,/## Sources/p' /tmp/tavily_result.txt | tail -n +2 | head -n -1 | tr '\n' ' | sed 's/  */ /g' | head -c 1500)
+    CONTENT="<p><strong>最新AI动态：</strong><br>$ANSWER</p>"
+else
+    CONTENT="<p>AI技术持续快速发展，各大科技公司不断推出新的产品和服务。从编程辅助到内容创作，AI工具发挥越来越重要的作用。</p>"
+fi
+
+echo "正在发布..." >> "$LOG_FILE"
+
+SQL_FILE="/tmp/blog_insert_${RANDOM}.sql"
+
+# 创建文章（使用单引号避免转义问题）
+echo "INSERT INTO wp_posts
+(post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt,
+post_status, comment_status,_ping_status, post_password, post_name, to_ping, pinged,
+post_modified, post_modified_gmt, post_content_filtered, post_parent, guid,
+menu_order, post_type, post_mime_type, comment_count)
+VALUES
+(1, NOW(), UTC_TIMESTAMP(),
+'<article>
+  <h2>从多模态革命到智能体时代</h2>
+  <p>今天是'"$TODAY"'",欢迎来到今天的 AI 每日资讯！</p>
+
+  <h3>最新资讯</h3>
+  '"$CONTENT"'
+
+  <h3>新工具推荐</h3>
+  <ul>
+    <li><strong>Claude Code</strong><br>Anthropic 推出的 AI 编程工具，支持多种编程语言和框架。</li>
+    <li><strong>Cursor</strong><br>AI原生的代码编辑器，提供智能补全和代码解释功能。</li>
+  </ul>
+
+  <h3>模型更新</h3>
+  <ul>
+    <li><strong>开源模型</strong><br>Llama 3、Mistral、Qwen 等开源大模型性能持续提升。</li>
+    <li><strong>模型能力</strong><br>各大公司持续突破模型能力限制。</li>
+  </ul>
+
+  <p style="color: #666; font-size:0.9em; margin-top:30px;">
+    📅 '"$DATE_SHORT"' ' '"$TIME_NOW"' | 🤖 由CrazyClaw自动生成 | 🔍 Tavily搜索 | 📍 重庆
+  </p>
+</article>',
+'$TITLE', '', 'publish', 'open', 'open', '', '$SLUG', '', '',
+NOW(), UTC_TIMESTAMP(), '', 0, 'http://42.193.14.72:8081/?p=999', 0, 'post', '', 0);
+" > "$SQL_FILE"
+
+# 发布
+docker exec -i wordpress-db mariadb -u wordpress_user -pWp@ss5691577 wordpress < "$SQL_FILE" > /dev/null 2>&1
+
+if [ $? -eq 0 ]; then
+    echo "✓ 成功！" >> "$LOG_FILE"
+    LATEST_ID=$(docker exec wordpress-db mariadb -u wordpress_user -pWp@ss5691577 wordpress -e "SELECT MAX(ID) FROM wp_posts;" 2>/dev/null | tail -1)
+    rm -f "$SQL_FILE" /tmp/tavily_result.txt
+    docker exec wordpress service apache2.reload > /dev/null 2>&1
+else
+    echo "✗ 失败" >> "$LOG_FILE"
+    rm -f "$SQL_FILE" /tmp/tavily_result.txt
+    exit 1
+fi
+
+echo "========================================" >> "$LOG_FILE"
+echo "✅ 博客已发布"
+echo "📰 标题: $TITLE"
+echo "🔗 地址: http://42.193.14.72:8081/?p=$LATEST_ID"

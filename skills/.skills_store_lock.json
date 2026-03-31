@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "summarizer": {
+      "name": "Summarizer",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=summarizer",
+      "source": "skillhub",
+      "version": "1.0.0"
+    },
+    "self-improving-agent": {
+      "name": "self-improving-agent",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=self-improving-agent",
+      "source": "skillhub",
+      "version": "1.0.11"
+    },
+    "tencent-news": {
+      "name": "tencent-news",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=tencent-news",
+      "source": "skillhub",
+      "version": "1.0.1"
+    },
+    "translate": {
+      "name": "Translate",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=translate",
+      "source": "skillhub",
+      "version": "1.0.0"
+    }
+  }
+}

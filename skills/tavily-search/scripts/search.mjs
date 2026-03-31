@@ -47,7 +47,7 @@ if (!apiKey) {
 
 const body = {
   api_key: apiKey,
-  query: query,
+  query: query,  // 查询字符串
   search_depth: searchDepth,
   topic: topic,
   max_results: Math.max(1, Math.min(n, 20)),

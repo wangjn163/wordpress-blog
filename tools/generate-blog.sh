@@ -1,0 +1,1 @@
+/root/.openclaw/workspace/skills/auto-blog/scripts/generate-blog.sh

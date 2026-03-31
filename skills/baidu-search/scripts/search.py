@@ -32,19 +32,19 @@ def baidu_search(api_key, requestBody: dict):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python baidu_search.py <Json>")
+        sys.stderr.write("Usage: python baidu_search.py <Json>\n")
         sys.exit(1)
 
     query = sys.argv[1]
     parse_data = {}
     try:
         parse_data = json.loads(query)
-        print(f"success parse request body: {parse_data}")
     except json.JSONDecodeError as e:
-        print(f"JSON parse error: {e}")
+        sys.stderr.write(f"JSON parse error: {e}\n")
+        sys.exit(1)
 
     if "query" not in parse_data:
-        print("Error: query must be present in request body.")
+        sys.stderr.write("Error: query must be present in request body.\n")
         sys.exit(1)
     count = 10
     search_filter = {}
@@ -73,14 +73,14 @@ if __name__ == "__main__":
             end_date = parse_data["freshness"].split("to")[1]
             search_filter = {"range": {"page_time": {"gte": start_date, "lt": end_date}}}
         else:
-            print(f"Error: freshness ({parse_data['freshness']}) must be pd, pw, pm, py, or match {pattern}.")
+            sys.stderr.write(f"Error: freshness ({parse_data['freshness']}) must be pd, pw, pm, py, or match {pattern}.\n")
             sys.exit(1)
 
     # We will pass these via env vars for security
     api_key = os.getenv("BAIDU_API_KEY")
 
     if not api_key:
-        print("Error: BAIDU_API_KEY must be set in environment.")
+        sys.stderr.write("Error: BAIDU_API_KEY must be set in environment.\n")
         sys.exit(1)
 
     request_body = {
@@ -96,7 +96,8 @@ if __name__ == "__main__":
     }
     try:
         results = baidu_search(api_key, request_body)
+        # 只输出JSON，不输出任何调试信息
         print(json.dumps(results, indent=2, ensure_ascii=False))
     except Exception as e:
-        print(f"Error: {str(e)}")
+        sys.stderr.write(f"Error: {str(e)}\n")
         sys.exit(1)
