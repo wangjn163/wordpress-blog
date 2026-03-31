@@ -92,6 +92,11 @@ def main():
         text = input_arg
     
     result = smart_translate(text)
+    # 清理Markdown残留格式（* *文字： * * 等）
+    import re as _re
+    result = _re.sub(r'\*\s*\*', '', result)  # 去掉孤立星号
+    result = _re.sub(r'\*{2,}', '', result)  # 去掉连续星号
+    result = _re.sub(r'\s{2,}', ' ', result)  # 去掉多余空格
     print(result)
 
 if __name__ == '__main__':

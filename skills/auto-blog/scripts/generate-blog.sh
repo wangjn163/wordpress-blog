@@ -115,10 +115,10 @@ perform_search() {
         log "⚠ 百度搜索失败，使用默认内容"
     fi
 
-    # 腾讯新闻热点（添加中文新闻源）
-    log "3. 执行腾讯新闻搜索..."
+    # 腾讯新闻AI日报
+    log "3. 执行腾讯新闻AI日报查询..."
     export TENCENT_NEWS_APIKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzQ1OTQ5MzYsImp0aSI6ImY5NTVlYTFhLWE2OTgtNDNjNy1iNGYyLTc0MjZhMWY1YjNmNiIsInN1aWQiOiI4UUlmM254WjY0WWV1ai9jNFFzPSJ9.rOzOd2oop1_kD3HdoV_6KSCCc3c3my0x21WHSJEdems'
-    /root/.openclaw/workspace/skills/tencent-news/tencent-news-cli hot --limit 3 > /tmp/tencent_news.txt 2>&1
+    /root/.openclaw/workspace/skills/tencent-news/tencent-news-cli ai-daily > /tmp/tencent_news.txt 2>&1
 
     if [ $? -eq 0 ] && [ -s /tmp/tencent_news.txt ]; then
         log "✓ 腾讯新闻搜索成功"
@@ -297,85 +297,101 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# 提取百度结果
+# 提取百度结果（限制摘要长度为150字）
 baidu_items = []
 try:
     with open('/tmp/baidu_result.json', 'r', encoding='utf-8') as f:
         data = json.load(f)
-        for item in data[:2]:
+        for item in data[:3]:
             title = item.get('title', '')
-            content_text = item.get('content', '')[:500]
+            content_text = item.get('content', '')[:200]  # 缩短到200字
             baidu_items.append(f"<strong>{title}</strong><br>{content_text}")
 except:
     baidu_items.append("<strong>AI技术持续发展</strong><br>各大公司在AI领域持续投入，推动技术进步。")
 
 baidu_html = "<br>".join(baidu_items)
 
-# 提取腾讯新闻结果（热点新闻）
+# 提取腾讯新闻AI日报（新格式：### 序号. 标题 / 摘要 [来源>>](链接)）
 tencent_items = []
 try:
     with open('/tmp/tencent_news.txt', 'r', encoding='utf-8') as f:
         content = f.read()
-        # 解析腾讯新闻格式（数字序号格式）
-        lines = content.split('\n')
-        current_item = {}
-        for line in lines:
-            line = line.strip()
-            # 匹配 "1. 标题：" 或 "标题：" 格式
-            if line and line[0].isdigit() and '标题：' in line:
-                if current_item:  # 保存上一个
-                    tencent_items.append(current_item)
-                title = line.split('标题：')[1].strip()
-                current_item = {'title': title}
-            elif '标题：' in line and not line[0].isdigit():
-                if current_item:  # 保存上一个
-                    tencent_items.append(current_item)
-                title = line.split('标题：')[1].strip()
-                current_item = {'title': title}
-            elif '摘要:' in line and current_item:
-                summary = line.split('摘要:')[1].strip()
-                current_item['summary'] = summary
-            elif '摘要:' in line and '摘要' not in current_item:
-                summary = line.split('摘要:')[1].strip()
-                current_item['summary'] = summary
-            elif '来源:' in line and current_item:
-                source = line.split('来源:')[1].strip()
-                current_item['source'] = source
-        if current_item:
-            tencent_items.append(current_item)
 
-        # 只取前3条
-        tencent_items = tencent_items[:3]
-except:
-    tencent_items = []
+    # 提取速览行作为摘要
+    suilv_match = re.search(r'速览[：:]\s*(.+?)(?:\n\n|\n###)', content, re.DOTALL)
+    tencent_summary = suilv_match.group(1).strip() if suilv_match else ''
+
+    # 提取各条新闻（格式：### N. 标题 / 摘要 [来源>>](链接)）
+    news_entries = re.findall(r'###\s*\d+\.\s*(.+?)(?:\n|$)', content)
+    news_blocks = content.split('### ')
+    
+    for block in news_blocks[1:6]:  # 跳过标题部分，取5条
+        lines = block.strip().split('\n')
+        if not lines:
+            continue
+        
+        # 第一行是标题和摘要
+        header = lines[0].strip()
+        # 分离标题和摘要（用 / 分割）
+        parts = re.split(r'\s*/\s*', header, maxsplit=1)
+        title = parts[0].strip().rstrip('.')
+        # 去掉标题开头的序号（如 "1. "）
+        title = re.sub(r'^\d+\.\s*', '', title)
+        summary = parts[1].strip() if len(parts) > 1 else ''
+        
+        # 提取链接
+        url_match = re.search(r'\[.*?\]\((https?://\S+)\)', block)
+        url = url_match.group(1) if url_match else ''
+        
+        # 提取来源（去掉已有的"来源:"前缀避免重复）
+        source_match = re.search(r'来源[：:]?\s*(.+?)>>?\]', block)
+        source = source_match.group(1).strip() if source_match else '腾讯新闻'
+        
+        if title:
+            item = {'title': title, 'summary': summary, 'source': source, 'url': url}
+            tencent_items.append(item)
+
+    print(f"✓ 腾讯新闻AI日报解析成功，共{len(tencent_items)}条", flush=True)
+except Exception as e:
+    print(f"⚠ 腾讯新闻解析失败: {e}", flush=True)
+    import traceback
+    traceback.print_exc()
 
 # 生成腾讯新闻HTML
 tencent_html = ""
 if tencent_items:
-    for item in tencent_items:
+    # 先放速览
+    if tencent_summary:
+        tencent_html += f"<p style='color:#555; font-size:0.95em; margin-bottom:12px;'>📌 <strong>今日概要：</strong>{tencent_summary}</p>"
+    
+    for item in tencent_items[:5]:
         title = item.get('title', '')
-        summary = item.get('summary', '')[:300]
+        summary = item.get('summary', '')
         source = item.get('source', '腾讯新闻')
-        tencent_html += f"<strong>{title}</strong><br>{summary}<br><small>来源：{source}</small><br><br>"
+        url = item.get('url', '')
+        
+        tencent_html += f"<strong>• {title}</strong>"
+        if summary:
+            tencent_html += f"<br><span style='color:#666;'>{summary}</span>"
+        if url:
+            tencent_html += f"<br><small><a href='{url}' target='_blank'>来源：{source}</a></small>"
+        tencent_html += "<br>"
 else:
-    tencent_html = "<strong>今日热点</strong><br>关注腾讯新闻获取最新资讯。"
+    tencent_html = "<strong>今日AI资讯</strong><br>请关注腾讯新闻获取最新AI动态。"
 
 # 构建完整内容
 full_content = f'''<article>
-  <h2>从多模态革命到智能体时代</h2>
-  <p>今天是{today},欢迎来到今天的 AI 每日资讯！本期汇集了Tavily、百度和腾讯新闻三源的AI最新动态。</p>
+  <h2>AI 每日资讯 | {today}</h2>
+  <p>本期汇集美国AI前线动态、国内产业进展与今日AI热点，三源精选。</p>
 
-  <h3>🌍 全球AI动态（Tavily搜索源）</h3>
+  <h3>🇺🇸 美国AI动态（Tavily搜索源）</h3>
   <p>{tavily_answer}</p>
 
   <h3>🇨🇳 国内AI动态（百度搜索源）</h3>
   <p>{baidu_html}</p>
 
-  <h3>📰 今日热点（腾讯新闻源）</h3>
-  <p>{tencent_html}</p>
-
-  <h3>🛠️ AI工具推荐（基于搜索结果）</h3>
-  <p>{tools_recommendation}</p>
+  <h3>📡 AI日报精选（腾讯新闻源）</h3>
+  {tencent_html}
 
   <p style='color: #666; font-size:0.9em; margin-top:30px;'>
     📅 {date_short} {time_now} | 🤖 由CrazyClaw自动生成 | 🔍 Tavily+百度+腾讯新闻三源搜索 | 📍 重庆
