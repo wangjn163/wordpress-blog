@@ -208,7 +208,7 @@ python3 /root/.openclaw/workspace/skills/baidu-search/scripts/search.py '{"query
 ### 问题3：WordPress发布失败
 ```bash
 # 检查数据库连接
-docker exec wordpress-db mariadb -u wordpress_user -p'REDACTED_DB_PASSWORD' wordpress -e "SELECT 1"
+docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress -e "SELECT 1"
 
 # 手动发布测试
 bash /root/.openclaw/workspace/tools/wp-publish-v2.sh "测试标题" "<p>测试内容</p>"
@@ -221,11 +221,11 @@ bash /root/.openclaw/workspace/tools/wp-publish-v2.sh "测试标题" "<p>测试�
 
 ```bash
 # 手动清理7天前的博客
-docker exec wordpress-db mariadb -u wordpress_user -p'REDACTED_DB_PASSWORD' wordpress -e \
+docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress -e \
   "DELETE FROM wp_posts WHERE post_type='post' AND DATE(post_date) < DATE_SUB(CURDATE(), INTERVAL 7 DAY);"
 
 # 查看当前博客数量
-docker exec wordpress-db mariadb -u wordpress_user -p'REDACTED_DB_PASSWORD' wordpress -e \
+docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress -e \
   "SELECT DATE(post_date) as date, COUNT(*) as count FROM wp_posts WHERE post_type='post' GROUP BY DATE(post_date) ORDER BY date DESC;"
 ```
 

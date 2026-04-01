@@ -13,7 +13,7 @@
 ```bash
 # 检查今天是否已经生成过博客
 today=$(date '+%Y-%m-%d')
-today_count=$(docker exec wordpress-db mariadb -u wordpress_user -p'REDACTED_DB_PASSWORD' wordpress \
+today_count=$(docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress \
     -se "SELECT COUNT(*) FROM wp_posts WHERE post_type='post' AND DATE(post_date)='$today';" 2>/dev/null)
 
 if [ "$today_count" -gt 0 ]; then

@@ -50,7 +50,7 @@ print_r(\$plugins);
 
 ### 8. 检查文章列表
 ```bash
-docker exec wordpress-db mariadb -uwordpress_user -pREDACTED_DB_PASSWORD wordpress -e "SELECT ID, post_title, post_status FROM wp_posts WHERE post_type='post' ORDER BY ID DESC;"
+docker exec wordpress-db mariadb -uwordpress_user -p$DB_PASSWORD wordpress -e "SELECT ID, post_title, post_status FROM wp_posts WHERE post_type='post' ORDER BY ID DESC;"
 ```
 
 ### 9. 测试评论功能
@@ -89,7 +89,7 @@ echo \"回复率: \" . (\$total > 0 ? round(\$replied/\$total*100, 1) : 0) . \"%
 ### 12. 列出所有未回复的用户评论
 ```bash
 docker exec wordpress php -r "
-\$mysqli = new mysqli('wordpress-db', 'wordpress_user', 'REDACTED_DB_PASSWORD', 'wordpress');
+\$mysqli = new mysqli('wordpress-db', 'wordpress_user', $DB_PASSWORD, 'wordpress');
 \$result = \$mysqli->query(\"SELECT comment_ID, comment_author, comment_content, comment_date FROM wp_comments WHERE comment_approved='1' AND comment_parent=0 ORDER BY comment_date DESC\");
 echo '未回复评论列表：\n';
 echo '===================================\n';
@@ -130,7 +130,7 @@ crontab -l | grep wordpress
 ### 14. 查看评论回复详情
 ```bash
 docker exec wordpress php -r "
-\$mysqli = new mysqli('wordpress-db', 'wordpress_user', 'REDACTED_DB_PASSWORD', 'wordpress');
+\$mysqli = new mysqli('wordpress-db', 'wordpress_user', $DB_PASSWORD, 'wordpress');
 \$result = \$mysqli->query(\"SELECT c1.comment_ID, c1.comment_author, c1.comment_content, c1.comment_date, c2.comment_ID as reply_id, c2.comment_content as reply_content FROM wp_comments c1 LEFT JOIN wp_comments c2 ON c2.comment_parent = c1.comment_ID WHERE c1.comment_approved='1' AND c1.comment_parent=0 ORDER BY c1.comment_date DESC LIMIT 10\");
 echo '评论及回复情况：\n';
 echo '===================================\n';

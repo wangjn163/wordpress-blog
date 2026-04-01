@@ -50,19 +50,19 @@ cd /opt/projects/blog/wordpress
 
 ### 查看所有文章
 ```bash
-docker exec wordpress-db mariadb -u wordpress_user -p"REDACTED_DB_PASSWORD" wordpress \
+docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress \
   -e "SELECT ID, post_title, post_status FROM wp_posts WHERE post_type='post' ORDER BY post_date DESC LIMIT 10;"
 ```
 
 ### 查看特定文章
 ```bash
-docker exec wordpress-db mariadb -u wordpress_user -p"REDACTED_DB_PASSWORD" wordpress \
+docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress \
   -e "SELECT * FROM wp_posts WHERE ID=123;"
 ```
 
 ### 删除文章
 ```bash
-docker exec wordpress-db mariadb -u wordpress_user -p"REDACTED_DB_PASSWORD" wordpress \
+docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress \
   -e "DELETE FROM wp_posts WHERE ID=123;"
 ```
 
@@ -151,7 +151,7 @@ echo "访问: http://42.193.14.72:8081"
 
 ```bash
 # 检查数据库连接
-docker exec wordpress-db mariadb -u wordpress_user -p"REDACTED_DB_PASSWORD" wordpress -e "SELECT 1;"
+docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress -e "SELECT 1;"
 
 # 检查 WordPress 容器
 docker ps | grep wordpress
@@ -164,7 +164,7 @@ docker logs wordpress
 
 ```bash
 # 检查文章状态
-docker exec wordpress-db mariadb -u wordpress_user -p"REDACTED_DB_PASSWORD" wordpress \
+docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress \
   -e "SELECT post_status FROM wp_posts WHERE post_title='文章标题';"
 
 # 清除缓存

@@ -2,10 +2,15 @@
 # WordPress 文章发布工具 (改进版)
 # 使用方法: ./wp-publish-v2.sh "文章标题" "文章内容(HTML格式)"
 
-DB_PASSWORD="REDACTED_DB_PASSWORD"
+DB_PASSWORD="${DB_PASSWORD:-$(cat ~/.config/wordpress/db_password 2>/dev/null)}"
 DB_USER="wordpress_user"
 DB_NAME="wordpress"
 WP_URL="http://42.193.14.72:8081"
+
+if [ -z "$DB_PASSWORD" ]; then
+  echo "错误: DB_PASSWORD 未设置，请设置环境变量或创建 ~/.config/wordpress/db_password"
+  exit 1
+fi
 
 if [ -z "$1" ]; then
   echo "用法: $0 \"文章标题\" \"文章内容(HTML)\""

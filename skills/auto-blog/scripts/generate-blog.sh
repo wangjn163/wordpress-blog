@@ -65,10 +65,7 @@ load_credentials() {
     # 从环境变量或配置文件加载
     export TAVILY_API_KEY="${TAVILY_API_KEY:-$(cat ~/.config/tavily/api_key 2>/dev/null)}"
     export BAIDU_API_KEY="${BAIDU_API_KEY:-$(cat ~/.config/baidu/api_key 2>/dev/null)}"
-
-    # 如果还是没有，使用默认值
-    export TAVILY_API_KEY="${TAVILY_API_KEY:-REDACTED_TAVILY_API_KEY}"
-    export BAIDU_API_KEY="${BAIDU_API_KEY:-REDACTED_BAIDU_API_KEY}"
+    export DB_PASSWORD="${DB_PASSWORD:-$(cat ~/.config/wordpress/db_password 2>/dev/null)}"
 
     log "✓ API凭证已加载"
 }
@@ -374,7 +371,7 @@ publish_blog() {
 
         # 清理7天前的旧博客（保留最近7天）
         log "清理7天前的旧博客..."
-        docker exec wordpress-db mariadb -u wordpress_user -p'REDACTED_DB_PASSWORD' wordpress \
+        docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress \
             -e "DELETE FROM wp_posts WHERE post_type='post' AND DATE(post_date) < DATE_SUB(CURDATE(), INTERVAL 7 DAY);" \
             2>&1 | grep -v "Warning" || true
 
@@ -406,12 +403,12 @@ main() {
 
     # 检查今天是否已经生成过博客
     today=$(date '+%Y-%m-%d')
-    today_count=$(docker exec wordpress-db mariadb -u wordpress_user -p'REDACTED_DB_PASSWORD' wordpress \
+    today_count=$(docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress \
         -se "SELECT COUNT(*) FROM wp_posts WHERE post_type='post' AND DATE(post_date)='$today';" 2>/dev/null)
 
     if [ "$today_count" -gt 0 ]; then
         log "⚠️  今天($today)已经生成过 $today_count 篇博客"
-        log "📅 最新博客: $(docker exec wordpress-db mariadb -u wordpress_user -p'REDACTED_DB_PASSWORD' wordpress \
+        log "📅 最新博客: $(docker exec wordpress-db mariadb -u wordpress_user -p"$DB_PASSWORD" wordpress \
             -se "SELECT CONCAT('ID:', ID, ' - ', post_title) FROM wp_posts WHERE post_type='post' AND DATE(post_date)='$today' ORDER BY post_date DESC LIMIT 1;" 2>/dev/null)"
         log "❌ 跳过本次生成（每天只生成一篇）"
         return 0
