@@ -349,6 +349,101 @@ PYTHON_SCRIPT
     log "✓ 博客内容已生成"
 }
 
+# DeepSeek AI 优化内容
+optimize_content() {
+    log "DeepSeek AI 优化内容..."
+
+    DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-$(cat ~/.config/deepseek/api_key 2>/dev/null)}"
+
+    if [ -z "$DEEPSEEK_API_KEY" ]; then
+        log "⚠️  DEEPSEEK_API_KEY 未设置，跳过AI优化"
+        return 0
+    fi
+
+    CONTENT=$(cat /tmp/blog_content.txt)
+    TITLE=$(cat /tmp/blog_title.txt)
+
+    # 去掉HTML标签，提取纯文本给DeepSeek
+    PLAIN_TEXT=$(echo "$CONTENT" | sed 's/<[^>]*>//g' | sed '/^$/d')
+
+    # 调用 DeepSeek API
+    RESPONSE=$(curl -s --max-time 120 https://api.deepseek.com/chat/completions \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $DEEPSEEK_API_KEY" \
+        -d "$(python3 -c "
+import json, sys
+content = '''$PLAIN_TEXT'''
+# 限制长度避免token超限（截取前8000字符）
+if len(content) > 8000:
+    content = content[:8000]
+
+payload = {
+    'model': 'deepseek-chat',
+    'messages': [
+        {
+            'role': 'system',
+            'content': '''你是一位专业的中文博客编辑。你的任务是优化AI资讯类博客文章的内容，使其更易读、更专业。
+
+优化原则：
+1. 保持所有新闻事实和核心信息不变，不编造内容
+2. 保持原有的HTML标签结构（<article>、<h2>、<h3>、<strong>、<br>、<small>、<a>、<p> 等）
+3. 改善句子表达，使其更流畅自然
+4. 修正语法、标点和排版问题
+5. 统一格式风格，让文章结构清晰
+6. 去除重复或冗余表达
+7. 保持底部的自动生成水印信息不变
+
+重要：输出完整的优化后HTML内容，包含所有HTML标签。不要添加任何解释说明。'''
+        },
+        {
+            'role': 'user',
+            'content': f'文章标题：$TITLE\\n\\n以下是生成的博客HTML内容，请优化：\\n\\n$content'
+        }
+    ],
+    'temperature': 0.3,
+    'max_tokens': 4096
+}
+print(json.dumps(payload, ensure_ascii=False))
+")" 2>/dev/null)
+
+    if [ $? -ne 0 ]; then
+        log "⚠️  DeepSeek API 请求失败，使用原始内容"
+        return 0
+    fi
+
+    # 提取优化后的内容
+    OPTIMIZED=$(echo "$RESPONSE" | python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    result = data['choices'][0]['message']['content']
+    print(result)
+except Exception as e:
+    print('', end='')
+    sys.exit(1)
+" 2>/dev/null)
+
+    if [ -n "$OPTIMIZED" ]; then
+        # 保存优化后的内容
+        echo "$OPTIMIZED" > /tmp/blog_content.txt
+        log "✓ DeepSeek AI 优化完成"
+
+        # 输出token使用情况
+        TOKENS=$(echo "$RESPONSE" | python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    u = data.get('usage', {})
+    print(f'Token使用: 输入{u.get(\"prompt_tokens\",0)} + 输出{u.get(\"completion_tokens\",0)} = {u.get(\"total_tokens\",0)}')
+except:
+    pass
+" 2>/dev/null)
+        [ -n "$TOKENS" ] && log "  $TOKENS"
+    else
+        log "⚠️  DeepSeek 返回内容为空，使用原始内容"
+    fi
+}
+
 # 发布到WordPress
 publish_blog() {
     log "发布到WordPress..."
@@ -421,6 +516,7 @@ main() {
     check_credentials
     perform_search
     generate_content
+    optimize_content
     publish_blog
     cleanup
 
